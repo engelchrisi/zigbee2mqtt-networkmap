@@ -4,11 +4,11 @@
   "private": true,
   "scripts": {
     "serve": "vue-cli-service serve",
-    "build": "vue-cli-service build",
-    "lint": "vue-cli-service lint"
+    "build": "vue-cli-service build"
   },
   "dependencies": {
-    "vue-visjs": ""
+    "vue": "^2.7.15",
+    "vue-visjs": "^0.6.0"
   },
   "devDependencies": {
     "@babel/core": "^7.0.0",

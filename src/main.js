@@ -10,6 +10,78 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
       return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
     }
 
+    const devices = [
+      {
+        friendlyName: '01',
+        ieeeAddr: '01',
+        type: 'Coordinator'
+      },
+      {
+        friendlyName: 'Door',
+        definition: {
+          model: 'MCCGQ14LM'
+        },
+        ieeeAddr: '02',
+        type: 'EndDevice'
+      },
+      {
+        friendlyName: 'Heating',
+        definition: {
+          model: 'GS361A-H04'
+        },
+        ieeeAddr: '04',
+        type: 'EndDevice'
+      },
+      {
+        friendlyName: 'Motion',
+        definition: {
+          model: '9290030675'
+        },
+        ieeeAddr: '05',
+        type: 'EndDevice'
+      },
+      {
+        friendlyName: 'Humidity',
+        definition: {
+          model: 'WSDCGQ11LM'
+        },
+        ieeeAddr: '06',
+        type: 'EndDevice'
+      },
+      {
+        friendlyName: 'Bulb',
+        definition: {
+          model: 'ZB_A60_RGBCW'
+        },
+        ieeeAddr: '07',
+        type: 'Router'
+      },
+      {
+        friendlyName: 'Plug Switch',
+        definition: {
+          model: 'AC10691'
+        },
+        ieeeAddr: '08',
+        type: 'Router'
+      },
+      {
+        friendlyName: 'Water',
+        definition: {
+          model: 'SJCGQ11LM'
+        },
+        ieeeAddr: '09',
+        type: 'EndDevice'
+      },
+      {
+        friendlyName: 'Smoke',
+        definition: {
+          model: 'R7049'
+        },
+        ieeeAddr: '10',
+        type: 'EndDevice'
+      }
+    ]
+
     const attrs = [
       {
         links: [
@@ -44,7 +116,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
             targetIeeeAddr: '01'
           },
           {
-            lqi: 47,
+            lqi: 120,
             sourceIeeeAddr: '02',
             targetIeeeAddr: '01'
           },
@@ -57,55 +129,29 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
             lqi: 70,
             sourceIeeeAddr: '10',
             targetIeeeAddr: '01'
+          },
+          {
+            lqi: 160,
+            sourceIeeeAddr: '07',
+            targetIeeeAddr: '08'
+          },
+          {
+            lqi: 65,
+            sourceIeeeAddr: '08',
+            targetIeeeAddr: '07'
+          },
+          {
+            lqi: 75,
+            sourceIeeeAddr: '01',
+            targetIeeeAddr: '08'
+          },
+          {
+            lqi: 250,
+            sourceIeeeAddr: '08',
+            targetIeeeAddr: '01'
           }
         ],
-        nodes: [
-          {
-            friendlyName: '01',
-            ieeeAddr: '01',
-            type: 'Coordinator'
-          },
-          {
-            friendlyName: 'cube',
-            ieeeAddr: '02',
-            type: 'EndDevice'
-          },
-          {
-            friendlyName: 'temperature',
-            ieeeAddr: '03',
-            type: 'EndDevice'
-          },
-          {
-            friendlyName: 'button',
-            ieeeAddr: '04',
-            type: 'EndDevice'
-          },
-          {
-            friendlyName: 'motion',
-            ieeeAddr: '05',
-            type: 'EndDevice'
-          },
-          {
-            friendlyName: 'huminity',
-            ieeeAddr: '06',
-            type: 'EndDevice'
-          },
-          {
-            friendlyName: 'plug',
-            ieeeAddr: '07',
-            type: 'Router'
-          },
-          {
-            friendlyName: 'door',
-            ieeeAddr: '09',
-            type: 'EndDevice'
-          },
-          {
-            friendlyName: 'smoke',
-            ieeeAddr: '10',
-            type: 'EndDevice'
-          }
-        ]
+        nodes: devices
       },
       {
         links: [
@@ -122,7 +168,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
           {
             lqi: 13,
             sourceIeeeAddr: '06',
-            targetIeeeAddr: '01'
+            targetIeeeAddr: '08'
           },
           {
             lqi: 35,
@@ -148,71 +194,63 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
             lqi: 70,
             sourceIeeeAddr: '10',
             targetIeeeAddr: '01'
+          },
+          {
+            lqi: 80,
+            sourceIeeeAddr: '07',
+            targetIeeeAddr: '08'
+          },
+          {
+            lqi: 40,
+            sourceIeeeAddr: '08',
+            targetIeeeAddr: '07'
+          },
+          {
+            lqi: 90,
+            sourceIeeeAddr: '01',
+            targetIeeeAddr: '08'
+          },
+          {
+            lqi: 50,
+            sourceIeeeAddr: '08',
+            targetIeeeAddr: '01'
           }
         ],
-        nodes: [
-          {
-            friendlyName: '01',
-            ieeeAddr: '01',
-            type: 'Coordinator'
-          },
-          {
-            friendlyName: 'cube',
-            ieeeAddr: '02',
-            type: 'EndDevice'
-          },
-          {
-            friendlyName: 'button',
-            ieeeAddr: '04',
-            type: 'EndDevice'
-          },
-          {
-            friendlyName: 'motion',
-            ieeeAddr: '05',
-            type: 'EndDevice'
-          },
-          {
-            friendlyName: 'huminity',
-            ieeeAddr: '06',
-            type: 'EndDevice'
-          },
-          {
-            friendlyName: 'plug',
-            ieeeAddr: '07',
-            type: 'Router'
-          },
-          {
-            friendlyName: 'door',
-            ieeeAddr: '09',
-            type: 'EndDevice'
-          },
-          {
-            friendlyName: 'smoke',
-            ieeeAddr: '10',
-            type: 'EndDevice'
-          }
-        ]
+        nodes: devices
       }
     ]
-
+    // dummy "backend" for development
     const hass = {
       count: 0,
-      callService () {
-        this.count++
-        document.querySelector('zigbee2mqtt-networkmap').hass = Object.assign({}, hass, {
-          count: this.count,
-          states: {
-            'sensor.zigbee2mqtt_networkmap': {
-              state: format(new Date()),
-              attributes: attrs[this.count % 2]
+      callService (platform, operation, data) {
+        const mqttBaseTopic = net._config.mqtt_base_topic || 'zigbee2mqtt'
+        if (data.topic === mqttBaseTopic + '/bridge/request/networkmap') {
+          this.count++
+          document.querySelector('zigbee2mqtt-networkmap').hass = Object.assign({}, hass, {
+            count: this.count,
+            states: {
+              'sensor.zigbee2mqtt_networkmap': {
+                state: format(new Date()),
+                attributes: attrs[this.count % 2]
+              },
+              'sensor.zigbee2mqtt_networkmap_layout': {
+                state: format(new Date()),
+                attributes: localStorage.getItem('layout') ? JSON.parse(localStorage.getItem('layout')) : null
+              }
             }
-          }
-        })
+          })
+        } else {
+          localStorage.setItem('layout', data.payload)
+        }
       },
       states: {
         'sensor.zigbee2mqtt_networkmap': {
           state: format(new Date()),
           attributes: attrs[0]
+        },
+        'sensor.zigbee2mqtt_networkmap_layout': {
+          state: format(new Date()),
+          attributes: localStorage.getItem('layout') ? JSON.parse(localStorage.getItem('layout')) : null
         }
       }
     }
@@ -223,26 +261,8 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
   net.setConfig({
     type: 'custom:zigbee2mqtt-networkmap',
     entity: 'sensor.zigbee2mqtt_networkmap',
-    mqtt_base_topic: 'zigbee2mqtt',
-    force: 3000,
-    node_size: 16,
-    font_size: 12,
-    link_width: 2,
-    height: 400,
-    css: `
-:host {
-  --zigbee2mqtt-networkmap-node-color: rgba(18, 120, 98, .7);
-  --zigbee2mqtt-networkmap-node-fill-color: #dcfaf3;
-  --zigbee2mqtt-networkmap-node-pinned-color: rgba(190, 56, 93, .6);
-  --zigbee2mqtt-networkmap-link-color: rgba(18, 120, 98, .5);
-  --zigbee2mqtt-networkmap-hover-color: #be385d;
-  --zigbee2mqtt-networkmap-link-selected-color: rgba(202, 164, 85, .6);
-  --zigbee2mqtt-networkmap-label-color: #127862;
-  --zigbee2mqtt-networkmap-arrow-color: rgba(18, 120, 98, 0.7);
-  --zigbee2mqtt-networkmap-node-coordinator-color: rgba(224, 78, 93, .7);
-  --zigbee2mqtt-networkmap-node-router-color: rgba(0, 165, 255, .7);
-}
-`
+    layout_entity: 'sensor.zigbee2mqtt_networkmap_layout',
+    mqtt_base_topic: 'zigbee2mqtt'
   })
   net.hass = createHass()
 })
