@@ -270,8 +270,8 @@ export default {
           physics: true,
           borderWidth: 1,
           color: {
-            background: d.type === 'Coordinator' ? '#3E8CFF' : '#ffffff',
-            border: this.isUnconnected(d, attr.links) ? '#902F24' : '#3E8CFF',
+            background: d.type === 'Coordinator' ? '#3E8CFF' : (this.isUnconnected(d, attr.links) ? '#FF0000' : '#ffffff'),
+            border: this.isUnconnected(d, attr.links) ? '#FF0000' : '#3E8CFF',
             highlight: {
               border: '#6D6B75',
               background: d.type === 'Coordinator' ? '#3E8CFF' : '#ffffff'
