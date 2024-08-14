@@ -79,6 +79,14 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         },
         ieeeAddr: '10',
         type: 'EndDevice'
+      },
+      {
+        friendlyName: 'TRETAKT',
+        definition: {
+          model: 'E2204'
+        },
+        ieeeAddr: '11',
+        type: 'Router'
       }
     ]
 
@@ -149,6 +157,16 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
             lqi: 250,
             sourceIeeeAddr: '08',
             targetIeeeAddr: '01'
+          },
+          {
+            lqi: 42,
+            sourceIeeeAddr: '11',
+            targetIeeeAddr: '08'
+          },
+          {
+            lqi: 84,
+            sourceIeeeAddr: '08',
+            targetIeeeAddr: '11'
           }
         ],
         nodes: devices

@@ -57,8 +57,20 @@
       <div class="flex">
         <mwc-button @click="refresh">Refresh</mwc-button>
         <div>
-        <input type="checkbox" id="lqi" v-model="showLqi" @change="toggleLqi($event)">
-        <label for="checkbox">LQI</label>
+          <input type="checkbox" id="lqi" v-model="showLqi" @change="doUpdateLayout($event)">
+          <label for="checkbox">LQI</label>
+        </div>
+        <div>
+          <input type="checkbox" id="EnddeviceEdgesId" v-model="showEnddeviceEdges" @change="doUpdateLayout($event)">
+          <label for="checkbox">End-Device Edges</label>
+        </div>
+        <div>
+          <input type="checkbox" id="RouterEdgesId" v-model="showRouterEdges" @change="doUpdateLayout($event)">
+          <label for="checkbox">Router Edges</label>
+        </div>
+        <div>
+          <input type="checkbox" id="weakEdgesOnlyId" v-model="showWeakEdgesOnly" @change="doUpdateLayout($event)">
+          <label for="checkbox">Weak Edges only</label>
         </div>
         <div>{{ state }}</div>
       </div>
@@ -84,6 +96,9 @@ export default {
       edges: [],
       state: '',
       showLqi: false,
+      showEnddeviceEdges: true,
+      showRouterEdges: true,
+      showWeakEdgesOnly: false,
       options: {
         autoResize: true,
         height: this.calcWindowHeight().toString()
@@ -178,8 +193,14 @@ export default {
     saveLayout () {
       const layout = this.$refs.network.getPositions()
       layout.showLqi = this.showLqi
+      layout.showEnddeviceEdges = this.showEnddeviceEdges
+      layout.showRouterEdges = this.showRouterEdges
+      layout.showWeakEdgesOnly = this.showWeakEdgesOnly
       if (this.hass.states[this.config.layout_entity] && this.hass.states[this.config.layout_entity].attributes) {
         this.hass.states[this.config.layout_entity].attributes.showLqi = this.showLqi
+        this.hass.states[this.config.layout_entity].attributes.showEnddeviceEdges = this.showEnddeviceEdges
+        this.hass.states[this.config.layout_entity].attributes.showRouterEdges = this.showRouterEdges
+        this.hass.states[this.config.layout_entity].attributes.showWeakEdgesOnly = this.showWeakEdgesOnly
       }
       const mqttBaseTopic = this.config.mqtt_base_topic || 'zigbee2mqtt'
       this.hass.callService('mqtt', 'publish', {
@@ -191,7 +212,7 @@ export default {
     isUnconnected (node, links) {
       return !links || !links.some(l => l.sourceIeeeAddr === node.ieeeAddr)
     },
-    toggleLqi (e) {
+    doUpdateLayout (e) {
       this.saveLayout()
       this.update()
     },
@@ -205,15 +226,18 @@ export default {
     },
     imageUrl (device) {
       // console.log('Device ' + JSON.stringify(device))
-      if (device && device.definition && device.definition.model) {
+      if (device.type === 'Coordinator') {
+        return 'https://www.zigbee2mqtt.io/images/devices/ZBDongle-E.png'
+      } else if (device && device.definition && device.definition.model) {
         var devModel = device.definition.model
         devModel = devModel.replace(/\//g, '-')
-        return 'https://www.zigbee2mqtt.io/images/devices/' + devModel + '.jpg'
+        return 'https://www.zigbee2mqtt.io/images/devices/' + devModel + '.png' // ((devModel === 'E2204') ? '.png' : '.png')
       } else {
         return './zigbee_icon.png'
       }
     },
-    processEdges (nodeIDs, edges) {
+    processEdges (nodesDict, edges) {
+      const nodeIDs = Object.keys(nodesDict)
       if (!nodeIDs || !edges) return null
 
       edges = edges.filter(
@@ -221,11 +245,40 @@ export default {
            nodeIDs.includes(e.targetIeeeAddr)
       )
       edges.forEach(edge => {
-        if (!edge.hidden) {
-          const reverse = edges.find(e => e.sourceIeeeAddr === edge.targetIeeeAddr && e.targetIeeeAddr === edge.sourceIeeeAddr)
-          if (reverse) {
-            reverse.hidden = true
-            edge.reverse = reverse
+        edge.hidden = false
+        edge.reverseEdge = null
+
+        const reverseEdge = edges.find(e => e.sourceIeeeAddr === edge.targetIeeeAddr && e.targetIeeeAddr === edge.sourceIeeeAddr)
+        if (reverseEdge) {
+          reverseEdge.hidden = true
+          edge.reverseEdge = reverseEdge
+          edge.combinedLqi = Math.round((edge.lqi + reverseEdge.lqi) / 2)
+        } else {
+          edge.combinedLqi = edge.lqi
+        }
+
+        const MAX_WEAK_LQI = 50
+        edge.isWeak = edge.combinedLqi <= MAX_WEAK_LQI
+
+        if (!this.showEnddeviceEdges) {
+          // Filter out all edges having a node with type 'EndDevice' as the target
+          if ((nodesDict[edge.targetIeeeAddr] && nodesDict[edge.targetIeeeAddr].type === 'EndDevice') ||
+              (nodesDict[edge.sourceIeeeAddr] && nodesDict[edge.sourceIeeeAddr].type === 'EndDevice')) {
+            edge.hidden = true
+          }
+        }
+        if (!edge.hidden && !this.showRouterEdges) {
+          // Filter out all edges having a node with type 'Router' as the target and source
+          if ((nodesDict[edge.sourceIeeeAddr] && nodesDict[edge.targetIeeeAddr]) &&
+              (nodesDict[edge.sourceIeeeAddr].type === 'Router' || nodesDict[edge.sourceIeeeAddr].type === 'Coordinator') &&
+              (nodesDict[edge.targetIeeeAddr].type === 'Router' || nodesDict[edge.targetIeeeAddr].type === 'Coordinator')) {
+            edge.hidden = true
+          }
+        }
+        if (!edge.hidden && this.showWeakEdgesOnly) {
+          // Filter out all edges whose lqi <= MAX_WEAK_LQI
+          if (!edge.isWeak) {
+            edge.hidden = true
           }
         }
       })
@@ -250,6 +303,9 @@ export default {
       const nodesDict = Object.assign({}, ...attr.nodes.map((n) => ({ [n.ieeeAddr]: n })))
       const layout = this.hass.states[this.config.layout_entity] ? this.hass.states[this.config.layout_entity].attributes : null
       this.showLqi = layout ? layout.showLqi || false : false
+      this.showEnddeviceEdges = layout ? layout.showEnddeviceEdges || false : false
+      this.showRouterEdges = layout ? layout.showRouterEdges || false : false
+      this.showWeakEdgesOnly = layout ? layout.showWeakEdgesOnly || false : false
       // console.log('Nodes: ' + JSON.stringify(this.nodes))
       // console.log('Attr. Nodes: ' + JSON.stringify(attr.nodes))
       this.nodes = this.merge(this.nodes, attr.nodes, d => d.id, d => d.ieeeAddr, d => {
@@ -261,24 +317,24 @@ export default {
           font: {
             size: 10
           },
+          shadow: true, // d.type === 'EndDevice',
           /*
           widthConstraint: {
             maximum: 70
           },
-          shadow: true,
           */
           physics: true,
-          borderWidth: 1,
+          borderWidth: d.type !== 'EndDevice' ? 2 : 1,
           color: {
-            background: d.type === 'Coordinator' ? '#3E8CFF' : (this.isUnconnected(d, attr.links) ? '#FF0000' : '#ffffff'),
-            border: this.isUnconnected(d, attr.links) ? '#FF0000' : '#3E8CFF',
+            background: this.isUnconnected(d, attr.links) ? '#FF0000' : '#ffffff',
+            border: this.isUnconnected(d, attr.links) ? '#FF0000' : (d.type === 'EndDevice' ? '#3E8CFF' : '#632289'),
             highlight: {
               border: '#6D6B75',
-              background: d.type === 'Coordinator' ? '#3E8CFF' : '#ffffff'
+              background: d.type !== 'EndDevice' ? '#66B0FB' : '#ffffff'
             }
           },
-          label: d.type === 'Coordinator' ? ' ' : d.friendlyName,
-          shape: d.type === 'Coordinator' ? 'hexagon' : 'circularImage'
+          label: d.type === 'Coordinator' ? ' ' : d.friendlyName, // + ' (' + d.ieeeAddr + ')',
+          shape: 'circularImage'
         }
         // set layout, if saved previously
         if (layout && layout[d.ieeeAddr] && layout[d.ieeeAddr].x) {
@@ -291,34 +347,34 @@ export default {
       // console.log('Attr.links: ' + JSON.stringify(attr.links))
       this.edges = this.merge(
         this.edges,
-        this.processEdges(Object.keys(nodesDict), attr.links),
+        this.processEdges(nodesDict, attr.links),
         e => e.sid + e.tid,
         e => e.sourceIeeeAddr + e.targetIeeeAddr,
         e => {
+          const lqi = e.combinedLqi
+          const edgeColor = this.edgeColor(lqi)
           const edge = {
             id: e.sourceIeeeAddr + e.targetIeeeAddr,
             from: e.sourceIeeeAddr,
             to: e.targetIeeeAddr,
-            // title: e.reverse ? (e.lqi + e.reverse.lqi) / 2 : e.lqi,
-            /*
-            scaling: {
-              min: 1,
-              max: 3
-            },
-            value: e.reverse ? (e.lqi + e.reverse.lqi) / 2 : e.lqi,
-             */
-            dashes: nodesDict[e.sourceIeeeAddr] && nodesDict[e.sourceIeeeAddr].type === 'EndDevice',
+            dashes: nodesDict[e.sourceIeeeAddr] && nodesDict[e.sourceIeeeAddr].type === 'EndDevice' ? [5, 5] : [0, 0],
+            width: 1,
             color: {
-              color: this.edgeColor(e.reverse ? (e.lqi + e.reverse.lqi) / 2 : e.lqi)
+              color: edgeColor
             },
             smooth: {
               enabled: true,
               type: 'dynamic'
             },
             font: {
-              size: 10
+              color: e.isWeak ? '#FFFFFF' : '#000000', // Text color
+              // face: 'arial', // Font family
+              // background: edgeColor, // Background color
+              strokeWidth: e.isWeak ? 5 : 0, // Simulated padding by making the stroke wider
+              strokeColor: edgeColor, // Stroke color same as background to create padding effect
+              size: e.isWeak ? 14 : 12 // Font size in pixels
             },
-            label: this.showLqi ? e.lqi.toString() + (e.reverse ? '/' + e.reverse.lqi : '') : ' '
+            label: this.showLqi ? lqi.toString() : '' // e.lqi.toString() + (e.reverseEdge ? '/' + e.reverseEdge.lqi : '') : ' '
           }
           return edge
         })
