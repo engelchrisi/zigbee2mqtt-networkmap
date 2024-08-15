@@ -68,9 +68,23 @@
           <input type="checkbox" id="RouterEdgesId" v-model="showRouterEdges" @change="doUpdateLayout($event)">
           <label for="checkbox">Router Edges</label>
         </div>
+        <!-- Dropdown for Weak edges -->
         <div>
-          <input type="checkbox" id="weakEdgesOnlyId" v-model="showWeakEdgesOnly" @change="doUpdateLayout($event)">
-          <label for="checkbox">Weak Edges only</label>
+          <label for="weakEdgesDropdown" style="margin-right: 8px;">Weak edges</label>
+          <select id="weakEdgesDropdown" v-model="selectedWeakEdgeOption" @change="doUpdateLayout($event)">
+            <option value="na" selected>N/A</option>
+            <option value="showOnly">Show Only</option>
+            <option value="filterOut">Filter out</option>
+          </select>
+        </div>
+        <!-- Dropdown for strong edges -->
+        <div>
+          <label for="strongEdgesDropdown" style="margin-right: 8px;">Strong edges</label>
+          <select id="strongEdgesDropdown" v-model="selectedStrongEdgeOption" @change="doUpdateLayout($event)">
+            <option value="na" selected>N/A</option>
+            <option value="showOnly">Show Only</option>
+            <option value="filterOut">Filter out</option>
+          </select>
         </div>
         <div>{{ state }}</div>
       </div>
@@ -98,7 +112,8 @@ export default {
       showLqi: false,
       showEnddeviceEdges: true,
       showRouterEdges: true,
-      showWeakEdgesOnly: false,
+      selectedWeakEdgeOption: 'na',
+      selectedStrongEdgeOption: 'na',
       options: {
         autoResize: true,
         height: this.calcWindowHeight().toString()
@@ -195,12 +210,14 @@ export default {
       layout.showLqi = this.showLqi
       layout.showEnddeviceEdges = this.showEnddeviceEdges
       layout.showRouterEdges = this.showRouterEdges
-      layout.showWeakEdgesOnly = this.showWeakEdgesOnly
+      layout.selectedWeakEdgeOption = this.selectedWeakEdgeOption
+      layout.selectedStrongEdgeOption = this.selectedStrongEdgeOption
       if (this.hass.states[this.config.layout_entity] && this.hass.states[this.config.layout_entity].attributes) {
         this.hass.states[this.config.layout_entity].attributes.showLqi = this.showLqi
         this.hass.states[this.config.layout_entity].attributes.showEnddeviceEdges = this.showEnddeviceEdges
         this.hass.states[this.config.layout_entity].attributes.showRouterEdges = this.showRouterEdges
-        this.hass.states[this.config.layout_entity].attributes.showWeakEdgesOnly = this.showWeakEdgesOnly
+        this.hass.states[this.config.layout_entity].attributes.selectedWeakEdgeOption = this.selectedWeakEdgeOption
+        this.hass.states[this.config.layout_entity].attributes.selectedStrongEdgeOption = this.selectedStrongEdgeOption
       }
       const mqttBaseTopic = this.config.mqtt_base_topic || 'zigbee2mqtt'
       this.hass.callService('mqtt', 'publish', {
@@ -213,6 +230,7 @@ export default {
       return !links || !links.some(l => l.sourceIeeeAddr === node.ieeeAddr)
     },
     doUpdateLayout (e) {
+      // console.log('doUpdateLayout' + e)
       this.saveLayout()
       this.update()
     },
@@ -231,6 +249,8 @@ export default {
       } else if (device && device.definition && device.definition.model) {
         var devModel = device.definition.model
         devModel = devModel.replace(/\//g, '-')
+        // replace space with "-" e.g. 'TYWB 4ch-RF'
+        devModel = devModel.replace(/\s+/g, '-')
         return 'https://www.zigbee2mqtt.io/images/devices/' + devModel + '.png' // ((devModel === 'E2204') ? '.png' : '.png')
       } else {
         return './zigbee_icon.png'
@@ -258,7 +278,9 @@ export default {
         }
 
         const MAX_WEAK_LQI = 50
+        const MIN_STRONG_LQI = 100
         edge.isWeak = edge.combinedLqi <= MAX_WEAK_LQI
+        edge.isStrong = edge.combinedLqi > MIN_STRONG_LQI
 
         if (!this.showEnddeviceEdges) {
           // Filter out all edges having a node with type 'EndDevice' as the target
@@ -275,9 +297,19 @@ export default {
             edge.hidden = true
           }
         }
-        if (!edge.hidden && this.showWeakEdgesOnly) {
+        if (!edge.hidden && this.selectedWeakEdgeOption !== 'na') {
           // Filter out all edges whose lqi <= MAX_WEAK_LQI
-          if (!edge.isWeak) {
+          if (!edge.isWeak && this.selectedWeakEdgeOption === 'showOnly') {
+            edge.hidden = true
+          } else if (edge.isWeak && this.selectedWeakEdgeOption === 'filterOut') {
+            edge.hidden = true
+          }
+        }
+        if (!edge.hidden && this.selectedStrongEdgeOption !== 'na') {
+          // Filter out all edges whose lqi < MIN_STRONG_LQI
+          if (!edge.isStrong && this.selectedStrongEdgeOption === 'showOnly') {
+            edge.hidden = true
+          } else if (edge.isStrong && this.selectedStrongEdgeOption === 'filterOut') {
             edge.hidden = true
           }
         }
@@ -302,10 +334,12 @@ export default {
       }
       const nodesDict = Object.assign({}, ...attr.nodes.map((n) => ({ [n.ieeeAddr]: n })))
       const layout = this.hass.states[this.config.layout_entity] ? this.hass.states[this.config.layout_entity].attributes : null
+      // console.log('layout' + JSON.stringify(layout))
       this.showLqi = layout ? layout.showLqi || false : false
       this.showEnddeviceEdges = layout ? layout.showEnddeviceEdges || false : false
       this.showRouterEdges = layout ? layout.showRouterEdges || false : false
-      this.showWeakEdgesOnly = layout ? layout.showWeakEdgesOnly || false : false
+      this.selectedWeakEdgeOption = layout ? layout.selectedWeakEdgeOption || 'na' : 'na'
+      this.selectedStrongEdgeOption = layout ? layout.selectedStrongEdgeOption || 'na' : 'na'
       // console.log('Nodes: ' + JSON.stringify(this.nodes))
       // console.log('Attr. Nodes: ' + JSON.stringify(attr.nodes))
       this.nodes = this.merge(this.nodes, attr.nodes, d => d.id, d => d.ieeeAddr, d => {

@@ -49,9 +49,9 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         type: 'EndDevice'
       },
       {
-        friendlyName: 'Bulb',
+        friendlyName: 'Relay',
         definition: {
-          model: 'ZB_A60_RGBCW'
+          model: 'TYWB 4ch-RF'
         },
         ieeeAddr: '07',
         type: 'Router'
