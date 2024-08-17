@@ -198,8 +198,14 @@ export default {
 
         // Find the path with the highest average LQI
         console.log('Before find highest')
-        const bestPath = paths.reduce((best, current) => {
-          return this.calculateAverageLQI(current) > this.calculateAverageLQI(best) ? current : best
+        let bestPath = []
+        let bestLQI = 0
+        paths.forEach(path => {
+          const lqi = this.calculateAverageLQI(path)
+          if (lqi > bestLQI) {
+            bestLQI = lqi
+            bestPath = path
+          }
         })
         console.log('After find highest')
 
@@ -226,13 +232,11 @@ export default {
         if (lastNodeId === endNodeId) {
           paths.push(path)
         } else {
-          const connectedEdges = this.$refs.network.getConnectedEdges(lastNodeId)
-          connectedEdges.forEach(edgeId => {
-            const edge = this.edges.find(e => e.id === edgeId)
-            const nextNode = edge.from === lastNodeId ? edge.to : edge.from
+          const connectedNodes = this.$refs.network.getConnectedNodes(lastNodeId)
+          connectedNodes.forEach(nodeId => {
             // avoid circular paths
-            if (!path.includes(nextNode)) {
-              stack.push([...path, nextNode])
+            if (!path.includes(nodeId)) {
+              stack.push([...path, nodeId])
             }
           })
         }
@@ -243,16 +247,18 @@ export default {
     calculateAverageLQI (path) {
       let lqiSum = 0
       const edgeCount = path.length - 1
+      let parentNodeId = 0
 
-      for (let i = 0; i < edgeCount; i++) {
-        const edgeId = this.$refs.network.getConnectedEdges(path[i]).find(id => {
-          const edge = this.edges.find(e => e.id === id)
-          return edge.to === path[i + 1] || edge.from === path[i + 1]
-        })
+      // console.log('Path: ' + JSON.stringify(path))
 
-        const edge = this.edges.find(e => e.id === edgeId)
-        lqiSum += edge.combinedLqi
-      }
+      path.forEach(nodeId => {
+        if (parentNodeId !== 0) {
+          const edge = this.edges.find(e => (e.from === parentNodeId && e.to === nodeId) || (e.to === parentNodeId && e.from === nodeId))
+          // console.log('Found edge: ' + JSON.stringify(edge))
+          lqiSum += edge.combinedLqi
+        }
+        parentNodeId = nodeId
+      })
 
       const average = lqiSum / edgeCount
       // console.log('avg LQI: ' + JSON.stringify(path) + '= ' + average)
@@ -261,13 +267,16 @@ export default {
     },
     getEdgesFromPath (path) {
       const edgesInPath = []
-      for (let i = 0; i < path.length - 1; i++) {
-        const edgeId = this.$refs.network.getConnectedEdges(path[i]).find(id => {
-          const edge = this.edges.find(e => e.id === id)
-          return edge.to === path[i + 1] || edge.from === path[i + 1]
-        })
-        edgesInPath.push(edgeId)
-      }
+      let parentNodeId = 0
+
+      path.forEach(nodeId => {
+        if (parentNodeId !== 0) {
+          const edge = this.edges.find(e => (e.from === parentNodeId && e.to === nodeId) || (e.to === parentNodeId && e.from === nodeId))
+          edgesInPath.push(edge.id)
+        }
+        parentNodeId = nodeId
+      })
+
       return edgesInPath
     },
     dragRelease () {
@@ -482,7 +491,7 @@ export default {
               // size: 14
             }
           },
-          label: d.friendlyName + ' (' + d.ieeeAddr + ')',
+          label: d.friendlyName, // + ' (' + d.ieeeAddr + ')',
           type: d.type,
           shape: 'circularImage'
         }
