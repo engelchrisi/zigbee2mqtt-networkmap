@@ -212,6 +212,8 @@ resources:
 
 ``` bash
 yarn build
+or
+yarn build --mode development
 ```
 
 ### Lints and fixes files

@@ -1,3 +1,4 @@
+<!-- https://visjs.github.io/vis-network/docs/network/ -->
 <template>
   <ha-card>
     <v-style>
@@ -22,7 +23,7 @@
       v-on:select="networkEvent('select')"
       v-on:select-node="networkEvent('select-node')"
       v-on:select-edge="networkEvent('selectEdge')"
-      v-on:deselect-node="networkEvent('deselectNode')"
+      v-on:deselect-node="networkEvent('deselect-node')"
       v-on:deselect-edge="networkEvent('deselectEdge')"
       v-on:drag-start="networkEvent('dragStart')"
       v-on:dragging="dragging"
@@ -116,7 +117,10 @@ export default {
       selectedStrongEdgeOption: 'na',
       options: {
         autoResize: true,
-        height: this.calcWindowHeight().toString()
+        height: this.calcWindowHeight().toString(),
+        interaction: {
+          selectConnectedEdges: false
+        }
         /*
         configure: {
           enabled: true,
@@ -156,7 +160,115 @@ export default {
   },
   methods: {
     networkEvent (eventName) {
-      // console.log(eventName)
+      if (eventName === 'select-node') {
+        this.handleSelectNode()
+      } else if (eventName === 'deselect-node') {
+        // console.log(eventName)
+      } else if (eventName === 'doubleClick') {
+        this.handleDoubleClick()
+      }
+    },
+    // normal selection of clicked node + all connected edges
+    handleSelectNode () {
+      const params = this.$refs.network.getSelectedNodes()
+      // console.log('handleSelectNode => ' + JSON.stringify(params))
+      if (params.length > 0) {
+        this.$refs.network.setSelection({
+          nodes: params
+        }, {
+          highlightEdges: true
+        })
+      }
+    },
+    // select path to coordinator with highest avergage LQI
+    handleDoubleClick () {
+      const params = this.$refs.network.getSelectedNodes()
+
+      if (params.length > 0) {
+        const clickedNodeId = params[0]
+        const coordinatorNode = this.nodes.find(n => n.type === 'Coordinator')
+
+        console.log('Before findAllPaths')
+        const paths = this.findAllPaths(clickedNodeId, coordinatorNode.id)
+        console.log('After findAllPaths')
+        // console.log('findAllPaths => ' + JSON.stringify(paths))
+        if (paths.length === 0) {
+          return
+        }
+
+        // Find the path with the highest average LQI
+        console.log('Before find highest')
+        const bestPath = paths.reduce((best, current) => {
+          return this.calculateAverageLQI(current) > this.calculateAverageLQI(best) ? current : best
+        })
+        console.log('After find highest')
+
+        // Highlight the best path
+        const highlightEdges = this.getEdgesFromPath(bestPath)
+
+        this.$refs.network.setSelection({
+          nodes: bestPath,
+          edges: highlightEdges
+        }, {
+          highlightEdges: false
+        })
+      }
+    },
+    // a path is an arrary of NodeIds
+    findAllPaths (startNodeId, endNodeId) {
+      const stack = [[startNodeId]]
+      const paths = []
+
+      while (stack.length > 0) {
+        const path = stack.pop()
+        const lastNodeId = path[path.length - 1]
+
+        if (lastNodeId === endNodeId) {
+          paths.push(path)
+        } else {
+          const connectedEdges = this.$refs.network.getConnectedEdges(lastNodeId)
+          connectedEdges.forEach(edgeId => {
+            const edge = this.edges.find(e => e.id === edgeId)
+            const nextNode = edge.from === lastNodeId ? edge.to : edge.from
+            // avoid circular paths
+            if (!path.includes(nextNode)) {
+              stack.push([...path, nextNode])
+            }
+          })
+        }
+      }
+
+      return paths
+    },
+    calculateAverageLQI (path) {
+      let lqiSum = 0
+      const edgeCount = path.length - 1
+
+      for (let i = 0; i < edgeCount; i++) {
+        const edgeId = this.$refs.network.getConnectedEdges(path[i]).find(id => {
+          const edge = this.edges.find(e => e.id === id)
+          return edge.to === path[i + 1] || edge.from === path[i + 1]
+        })
+
+        const edge = this.edges.find(e => e.id === edgeId)
+        lqiSum += edge.combinedLqi
+      }
+
+      const average = lqiSum / edgeCount
+      // console.log('avg LQI: ' + JSON.stringify(path) + '= ' + average)
+
+      return average
+    },
+    getEdgesFromPath (path) {
+      const edgesInPath = []
+      for (let i = 0; i < path.length - 1; i++) {
+        const edgeId = this.$refs.network.getConnectedEdges(path[i]).find(id => {
+          const edge = this.edges.find(e => e.id === id)
+          return edge.to === path[i + 1] || edge.from === path[i + 1]
+        })
+        edgesInPath.push(edgeId)
+      }
+      return edgesInPath
     },
     dragRelease () {
       // save state
@@ -351,7 +463,7 @@ export default {
           font: {
             size: 10
           },
-          shadow: true, // d.type === 'EndDevice',
+          shadow: true,
           /*
           widthConstraint: {
             maximum: 70
@@ -364,10 +476,14 @@ export default {
             border: this.isUnconnected(d, attr.links) ? '#FF0000' : (d.type === 'EndDevice' ? '#3E8CFF' : '#632289'),
             highlight: {
               border: '#6D6B75',
-              background: d.type !== 'EndDevice' ? '#66B0FB' : '#ffffff'
+              background: '#66B0FB'
+              // strokeWidth: 5,
+              // strokeColor: '#FF0000',
+              // size: 14
             }
           },
-          label: d.type === 'Coordinator' ? ' ' : d.friendlyName, // + ' (' + d.ieeeAddr + ')',
+          label: d.friendlyName + ' (' + d.ieeeAddr + ')',
+          type: d.type,
           shape: 'circularImage'
         }
         // set layout, if saved previously
@@ -393,6 +509,7 @@ export default {
             to: e.targetIeeeAddr,
             dashes: nodesDict[e.sourceIeeeAddr] && nodesDict[e.sourceIeeeAddr].type === 'EndDevice' ? [5, 5] : [0, 0],
             width: 1,
+            selectionWidth: 2,
             color: {
               color: edgeColor
             },
@@ -408,7 +525,9 @@ export default {
               strokeColor: edgeColor, // Stroke color same as background to create padding effect
               size: e.isWeak ? 14 : 12 // Font size in pixels
             },
-            label: this.showLqi ? lqi.toString() : '' // e.lqi.toString() + (e.reverseEdge ? '/' + e.reverseEdge.lqi : '') : ' '
+            label: this.showLqi ? lqi.toString() : '', // e.lqi.toString() + (e.reverseEdge ? '/' + e.reverseEdge.lqi : '') : ' '
+            // for edges in both directions the average out of the 2 LQIs, otherwise e.LQI
+            combinedLqi: e.combinedLqi
           }
           return edge
         })

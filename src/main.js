@@ -12,7 +12,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
 
     const devices = [
       {
-        friendlyName: '01',
+        friendlyName: 'Coordinator',
         ieeeAddr: '01',
         type: 'Coordinator'
       },
