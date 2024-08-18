@@ -13,7 +13,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
     const devices = [
       {
         friendlyName: 'Coordinator',
-        ieeeAddr: '01',
+        ieeeAddr: 'node-01',
         type: 'Coordinator'
       },
       {
@@ -21,7 +21,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         definition: {
           model: 'MCCGQ14LM'
         },
-        ieeeAddr: '02',
+        ieeeAddr: 'node-02',
         type: 'EndDevice'
       },
       {
@@ -29,7 +29,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         definition: {
           model: 'GS361A-H04'
         },
-        ieeeAddr: '04',
+        ieeeAddr: 'node-04',
         type: 'EndDevice'
       },
       {
@@ -37,7 +37,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         definition: {
           model: '9290030675'
         },
-        ieeeAddr: '05',
+        ieeeAddr: 'node-05',
         type: 'EndDevice'
       },
       {
@@ -45,7 +45,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         definition: {
           model: 'WSDCGQ11LM'
         },
-        ieeeAddr: '06',
+        ieeeAddr: 'node-06',
         type: 'EndDevice'
       },
       {
@@ -53,7 +53,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         definition: {
           model: 'TYWB 4ch-RF'
         },
-        ieeeAddr: '07',
+        ieeeAddr: 'node-07',
         type: 'Router'
       },
       {
@@ -61,7 +61,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         definition: {
           model: 'AC10691'
         },
-        ieeeAddr: '08',
+        ieeeAddr: 'node-08',
         type: 'Router'
       },
       {
@@ -69,7 +69,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         definition: {
           model: 'SJCGQ11LM'
         },
-        ieeeAddr: '09',
+        ieeeAddr: 'node-09',
         type: 'EndDevice'
       },
       {
@@ -77,7 +77,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         definition: {
           model: 'R7049'
         },
-        ieeeAddr: '10',
+        ieeeAddr: 'node-10',
         type: 'EndDevice'
       },
       {
@@ -85,7 +85,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         definition: {
           model: 'E2204'
         },
-        ieeeAddr: '11',
+        ieeeAddr: 'node-11',
         type: 'Router'
       }
     ]
@@ -95,78 +95,78 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         links: [
           {
             lqi: 17,
-            sourceIeeeAddr: '04',
-            targetIeeeAddr: '01'
+            sourceIeeeAddr: 'node-04',
+            targetIeeeAddr: 'node-01'
           },
           {
             lqi: 69,
-            sourceIeeeAddr: '05',
-            targetIeeeAddr: '01'
+            sourceIeeeAddr: 'node-05',
+            targetIeeeAddr: 'node-01'
           },
           {
             lqi: 13,
-            sourceIeeeAddr: '06',
-            targetIeeeAddr: '01'
+            sourceIeeeAddr: 'node-06',
+            targetIeeeAddr: 'node-01'
           },
           {
             lqi: 35,
-            sourceIeeeAddr: '07',
-            targetIeeeAddr: '01'
+            sourceIeeeAddr: 'node-07',
+            targetIeeeAddr: 'node-01'
           },
           {
             lqi: 41,
-            sourceIeeeAddr: '01',
-            targetIeeeAddr: '07'
+            sourceIeeeAddr: 'node-01',
+            targetIeeeAddr: 'node-07'
           },
           {
             lqi: 26,
-            sourceIeeeAddr: '03',
-            targetIeeeAddr: '01'
+            sourceIeeeAddr: 'node-03',
+            targetIeeeAddr: 'node-01'
           },
           {
             lqi: 120,
-            sourceIeeeAddr: '02',
-            targetIeeeAddr: '01'
+            sourceIeeeAddr: 'node-02',
+            targetIeeeAddr: 'node-01'
           },
           {
             lqi: 32,
-            sourceIeeeAddr: '09',
-            targetIeeeAddr: '01'
+            sourceIeeeAddr: 'node-09',
+            targetIeeeAddr: 'node-01'
           },
           {
             lqi: 70,
-            sourceIeeeAddr: '10',
-            targetIeeeAddr: '01'
+            sourceIeeeAddr: 'node-10',
+            targetIeeeAddr: 'node-01'
           },
           {
             lqi: 160,
-            sourceIeeeAddr: '07',
-            targetIeeeAddr: '08'
+            sourceIeeeAddr: 'node-07',
+            targetIeeeAddr: 'node-08'
           },
           {
             lqi: 65,
-            sourceIeeeAddr: '08',
-            targetIeeeAddr: '07'
+            sourceIeeeAddr: 'node-08',
+            targetIeeeAddr: 'node-07'
           },
           {
             lqi: 75,
-            sourceIeeeAddr: '01',
-            targetIeeeAddr: '08'
+            sourceIeeeAddr: 'node-01',
+            targetIeeeAddr: 'node-08'
           },
           {
             lqi: 250,
-            sourceIeeeAddr: '08',
-            targetIeeeAddr: '01'
+            sourceIeeeAddr: 'node-08',
+            targetIeeeAddr: 'node-01'
           },
           {
             lqi: 42,
-            sourceIeeeAddr: '11',
-            targetIeeeAddr: '08'
+            sourceIeeeAddr: 'node-11',
+            targetIeeeAddr: 'node-08'
           },
           {
             lqi: 84,
-            sourceIeeeAddr: '08',
-            targetIeeeAddr: '11'
+            sourceIeeeAddr: 'node-08',
+            targetIeeeAddr: 'node-11'
           }
         ],
         nodes: devices
@@ -175,63 +175,63 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         links: [
           {
             lqi: 17,
-            sourceIeeeAddr: '04',
-            targetIeeeAddr: '01'
+            sourceIeeeAddr: 'node-04',
+            targetIeeeAddr: 'node-01'
           },
           {
             lqi: 69,
-            sourceIeeeAddr: '05',
-            targetIeeeAddr: '01'
+            sourceIeeeAddr: 'node-05',
+            targetIeeeAddr: 'node-01'
           },
           {
             lqi: 13,
-            sourceIeeeAddr: '06',
-            targetIeeeAddr: '08'
+            sourceIeeeAddr: 'node-06',
+            targetIeeeAddr: 'node-08'
           },
           {
             lqi: 35,
-            sourceIeeeAddr: '07',
-            targetIeeeAddr: '01'
+            sourceIeeeAddr: 'node-07',
+            targetIeeeAddr: 'node-01'
           },
           {
             lqi: 41,
-            sourceIeeeAddr: '01',
-            targetIeeeAddr: '07'
+            sourceIeeeAddr: 'node-01',
+            targetIeeeAddr: 'node-07'
           },
           {
             lqi: 47,
-            sourceIeeeAddr: '02',
-            targetIeeeAddr: '07'
+            sourceIeeeAddr: 'node-02',
+            targetIeeeAddr: 'node-07'
           },
           {
             lqi: 32,
-            sourceIeeeAddr: '09',
-            targetIeeeAddr: '01'
+            sourceIeeeAddr: 'node-09',
+            targetIeeeAddr: 'node-01'
           },
           {
             lqi: 70,
-            sourceIeeeAddr: '10',
-            targetIeeeAddr: '01'
+            sourceIeeeAddr: 'node-10',
+            targetIeeeAddr: 'node-01'
           },
           {
             lqi: 80,
-            sourceIeeeAddr: '07',
-            targetIeeeAddr: '08'
+            sourceIeeeAddr: 'node-07',
+            targetIeeeAddr: 'node-08'
           },
           {
             lqi: 40,
-            sourceIeeeAddr: '08',
-            targetIeeeAddr: '07'
+            sourceIeeeAddr: 'node-08',
+            targetIeeeAddr: 'node-07'
           },
           {
             lqi: 90,
-            sourceIeeeAddr: '01',
-            targetIeeeAddr: '08'
+            sourceIeeeAddr: 'node-01',
+            targetIeeeAddr: 'node-08'
           },
           {
             lqi: 50,
-            sourceIeeeAddr: '08',
-            targetIeeeAddr: '01'
+            sourceIeeeAddr: 'node-08',
+            targetIeeeAddr: 'node-01'
           }
         ],
         nodes: devices

@@ -188,7 +188,6 @@ export default {
         const clickedNodeId = params[0]
         const coordinatorNode = this.nodes.find(n => n.type === 'Coordinator')
 
-        console.log('Before findAllPaths')
         const paths = this.findAllPaths(clickedNodeId, coordinatorNode.id)
         console.log('After findAllPaths')
         // console.log('findAllPaths => ' + JSON.stringify(paths))
@@ -245,14 +244,18 @@ export default {
 
       return paths
     },
+    // return the path's smallest LQI, in case an LQI is smaller than currentMinLQI then this value is returned
+    // and search is stopped
     findWeakestLQI (path, currentMinLQI) {
       let lqiMin = 255
       let parentNodeId = 0
 
-      // console.log('Path: ' + JSON.stringify(path))
       path.forEach(nodeId => {
         if (parentNodeId !== 0) {
-          const edge = this.edges.find(e => (e.from === parentNodeId && e.to === nodeId) || (e.to === parentNodeId && e.from === nodeId))
+          const key1 = this.generateEdgeKey(parentNodeId, nodeId)
+          const key2 = this.generateEdgeKey(nodeId, parentNodeId)
+          const edge = this.edgesDict[key1] || this.edgesDict[key2]
+
           if (edge.combinedLqi < lqiMin) {
             lqiMin = edge.combinedLqi
             if (lqiMin < currentMinLQI) {
@@ -272,12 +275,12 @@ export default {
       const edgeCount = path.length - 1
       let parentNodeId = 0
 
-      // console.log('Path: ' + JSON.stringify(path))
-
       path.forEach(nodeId => {
         if (parentNodeId !== 0) {
-          const edge = this.edges.find(e => (e.from === parentNodeId && e.to === nodeId) || (e.to === parentNodeId && e.from === nodeId))
-          // console.log('Found edge: ' + JSON.stringify(edge))
+          const key1 = this.generateEdgeKey(parentNodeId, nodeId)
+          const key2 = this.generateEdgeKey(nodeId, parentNodeId)
+          const edge = this.edgesDict[key1] || this.edgesDict[key2]
+
           lqiSum += edge.combinedLqi
         }
         parentNodeId = nodeId
@@ -294,7 +297,10 @@ export default {
 
       path.forEach(nodeId => {
         if (parentNodeId !== 0) {
-          const edge = this.edges.find(e => (e.from === parentNodeId && e.to === nodeId) || (e.to === parentNodeId && e.from === nodeId))
+          const key1 = this.generateEdgeKey(parentNodeId, nodeId)
+          const key2 = this.generateEdgeKey(nodeId, parentNodeId)
+          const edge = this.edgesDict[key1] || this.edgesDict[key2]
+
           edgesInPath.push(edge.id)
         }
         parentNodeId = nodeId
@@ -318,6 +324,10 @@ export default {
     onResize () {
       this.options.height = this.calcWindowHeight().toString()
       this.$refs.network.fit()
+    },
+
+    generateEdgeKey (sourceIeeeAddr, targetIeeeAddr) {
+      return sourceIeeeAddr + '/' + targetIeeeAddr
     },
 
     // The merge function takes two arrays of objects (target and source), matches them based on keys
@@ -486,6 +496,18 @@ export default {
     edgeColor (lqi) {
       return this.hsv2rgb(120 * lqi / 255, 1, 0.8)
     },
+    updateNodesDict () {
+      this.nodesDict = this.nodes.reduce((acc, n) => {
+        acc[n.id] = n
+        return acc
+      }, {})
+    },
+    updateEdgesDict () {
+      this.edgesDict = this.edges.reduce((acc, e) => {
+        acc[e.id] = e
+        return acc
+      }, {})
+    },
     update () {
       const attr = this.hass.states[this.config.entity].attributes
       if (!attr.nodes && !this.initialized) {
@@ -493,7 +515,6 @@ export default {
         this.refresh()
         return
       }
-      const nodesDict = Object.assign({}, ...attr.nodes.map((n) => ({ [n.ieeeAddr]: n })))
       const layout = this.hass.states[this.config.layout_entity] ? this.hass.states[this.config.layout_entity].attributes : null
       // console.log('layout' + JSON.stringify(layout))
       this.showLqi = layout ? layout.showLqi || false : false
@@ -533,7 +554,7 @@ export default {
               // size: 14
             }
           },
-          label: d.friendlyName, // + ' (' + d.ieeeAddr + ')',
+          label: d.friendlyName + ' (' + d.ieeeAddr + ')',
           type: d.type,
           shape: 'circularImage'
         }
@@ -545,22 +566,24 @@ export default {
         }
         return node
       })
+      this.updateNodesDict()
       // console.log('Attr.links: ' + JSON.stringify(attr.links))
 
-      // merge this.edges with this.processEdges(nodesDict, attr.links)
+      // merge this.edges with this.processEdges(this.nodesDict, attr.links)
       this.edges = this.merge(
         this.edges,
-        this.processEdges(nodesDict, attr.links),
-        e => e.sid + e.tid,
-        e => e.sourceIeeeAddr + e.targetIeeeAddr,
+        this.processEdges(this.nodesDict, attr.links),
+        e => this.generateEdgeKey(e.sid, e.tid),
+        e => this.generateEdgeKey(e.sourceIeeeAddr, e.targetIeeeAddr),
         e => {
           const lqi = e.combinedLqi
           const edgeColor = this.edgeColor(lqi)
+          const edgeId = this.generateEdgeKey(e.sourceIeeeAddr, e.targetIeeeAddr)
           const edge = {
-            id: e.sourceIeeeAddr + e.targetIeeeAddr,
+            id: edgeId,
             from: e.sourceIeeeAddr,
             to: e.targetIeeeAddr,
-            dashes: nodesDict[e.sourceIeeeAddr] && nodesDict[e.sourceIeeeAddr].type === 'EndDevice' ? [5, 5] : [0, 0],
+            dashes: this.nodesDict[e.sourceIeeeAddr] && this.nodesDict[e.sourceIeeeAddr].type === 'EndDevice' ? [5, 5] : [0, 0],
             width: 1,
             selectionWidth: 2,
             color: {
@@ -578,13 +601,15 @@ export default {
               strokeColor: edgeColor, // Stroke color same as background to create padding effect
               size: e.isWeak ? 14 : 12 // Font size in pixels
             },
-            label: this.showLqi ? lqi.toString() : '', // e.lqi.toString() + (e.reverseEdge ? '/' + e.reverseEdge.lqi : '') : ' '
+            label: this.showLqi ? lqi.toString() + ' (' + edgeId + ')' : '',
+            // e.lqi.toString() + (e.reverseEdge ? '/' + e.reverseEdge.lqi : '') : ' '
             // for edges in both directions the average out of the 2 LQIs, otherwise e.LQI
             combinedLqi: e.combinedLqi
           }
           return edge
         })
       // console.log('Processed Edges: ' + JSON.stringify(this.edges))
+      this.updateEdgesDict()
     }
   },
   mounted () {
