@@ -182,23 +182,39 @@ export default {
     },
     // select path to coordinator with highest avergage LQI
     handleDoubleClick () {
+      console.log('================================')
       const params = this.$refs.network.getSelectedNodes()
 
       if (params.length > 0) {
         const clickedNodeId = params[0]
         const coordinatorNode = this.nodes.find(n => n.type === 'Coordinator')
-        let bestPath = []
 
-        this.findLeastWeakPath()
-        // console.log('Before findAllPaths')
-        bestPath = this.findLeastWeakPath(clickedNodeId, coordinatorNode.id)
-        // console.log('After findAllPaths:' + JSON.stringify(bestPath))
+        // Running the Modified Nearest Neighbor algorithm
+        // search by intention backwards from endNodeId to startNodeId
+        let firstResult = this.tspNearestNeighborLQI(this.nodeIds, coordinatorNode.id, clickedNodeId)
+
+        // if nearest neighbor fails, try random neighbor
+        while (firstResult.path === null) {
+          firstResult = this.tspRandomNeighborLQI(this.nodeIds, coordinatorNode.id, clickedNodeId)
+        }
+
+        // Log the Nearest Neighbor results
+        console.log('First Path: ', firstResult.path)
+        console.log('First Minimum LQI: ', firstResult.minLQI)
+
+        // Running DFS with the LQI constraint
+        // search by intention backwards from endNodeId to startNodeId
+        const bestResult = this.dfsLQI(coordinatorNode.id, clickedNodeId, firstResult)
+
+        // Log all valid paths
+        console.log('Best Path: ', bestResult.path)
+        console.log('Best Minimum LQI: ', bestResult.minLQI)
 
         // Highlight the best path
-        const highlightEdges = this.getEdgesFromPath(bestPath)
+        const highlightEdges = this.getEdgesFromPath(bestResult.path)
 
         this.$refs.network.setSelection({
-          nodes: bestPath,
+          nodes: bestResult.path,
           edges: highlightEdges
         }, {
           highlightEdges: false
@@ -213,122 +229,140 @@ export default {
       return arr1.every((value, index) => value === arr2[index])
     },
 
-    findEdge (parentNodeId, nodeId) {
-      // console.count('findEdge')
+    /**
+     * Finds the shortest path using the nearest neighbor algorithm based on Link Quality Indicator (LQI).
+     *
+     * @param {string[]} nodeIds - The array of node IDs.
+     * @param {string} startNodeId - The ID of the starting node.
+     * @param {string} endNodeId - The ID of the ending node.
+     * @returns {{ path: string[] | null, minLQI: number }} - The shortest path and the minimum LQI value.
+     */
+    tspNearestNeighborLQI (nodeIds, startNodeId, endNodeId) {
+      const visitedNodeIds = []
+      const unvisitedNodeIds = new Set(nodeIds)
+      let currentNodeId = startNodeId
+      let minLQI = Infinity
 
-      const key1 = this.generateEdgeKey(parentNodeId, nodeId)
-      let edge = this.edgesDict[key1]
+      while (currentNodeId !== endNodeId) {
+        visitedNodeIds.push(currentNodeId)
+        unvisitedNodeIds.delete(currentNodeId)
 
-      if (edge === undefined) {
-        const key2 = this.generateEdgeKey(nodeId, parentNodeId)
-        edge = this.edgesDict[key2]
+        let bestNeighborId = null
+        let bestLQI = -Infinity
+
+        this.edgesPerNode[currentNodeId].forEach(edge => {
+          const neighborId = edge.from === currentNodeId ? edge.to : edge.from
+
+          if (unvisitedNodeIds.has(neighborId) && edge.combinedLqi > bestLQI) {
+            bestLQI = edge.combinedLqi
+            bestNeighborId = neighborId
+          }
+        })
+
+        if (bestNeighborId === null) {
+          console.log('No valid neighbor')
+          return { path: null, minLQI: -Infinity }
+        }
+
+        minLQI = Math.min(minLQI, bestLQI)
+        currentNodeId = bestNeighborId
       }
+      visitedNodeIds.push(currentNodeId) // Add the end node to the path
 
-      if (edge === undefined) {
-        const parentNode = this.nodesDict[parentNodeId]
-        const node = this.nodesDict[nodeId]
-
-        console.error('No edge found between\n' + JSON.stringify(parentNode) + '\nand\n' + JSON.stringify(node))
-      }
-
-      return edge
+      return { path: visitedNodeIds, minLQI }
     },
 
-    // a path is an arrary of NodeIds
-    findLeastWeakPath (startNodeId, endNodeId) {
-      let stack = [[startNodeId]]
-      let bestPath = []
-      let bestLqiMinimum = 0
+    /**
+     * Finds a random neighbor with the lowest LQI (Link Quality Indicator) in a given graph,
+     * using the Traveling Salesman Problem (TSP) algorithm.
+     *
+     * @param {string[]} nodeIds - The IDs of all nodes in the graph.
+     * @param {string} startNodeId - The ID of the starting node.
+     * @param {string} endNodeId - The ID of the ending node.
+     * @returns {{ path: string[] | null, minLQI: number }} - The path of visited node IDs and the minimum LQI value.
+     */
+    tspRandomNeighborLQI (nodeIds, startNodeId, endNodeId) {
+      const visitedNodeIds = []
+      const unvisitedNodeIds = new Set(nodeIds)
+      let currentNodeId = startNodeId
+      let minLQI = Infinity
+
+      while (currentNodeId !== endNodeId) {
+        visitedNodeIds.push(currentNodeId)
+        unvisitedNodeIds.delete(currentNodeId)
+
+        const unvisitedNeighbors = Array.from(this.edgesPerNode[currentNodeId])
+          .filter(edge => unvisitedNodeIds.has(edge.from) || unvisitedNodeIds.has(edge.to))
+
+        if (unvisitedNeighbors.length === 0) {
+          console.log('No valid neighbor')
+          return { path: null, minLQI: -Infinity }
+        }
+
+        // Randomly select a neighbor
+        const randomIndex = Math.floor(Math.random() * unvisitedNeighbors.length)
+        const randomNeighbor = unvisitedNeighbors[randomIndex]
+        const neighborId = randomNeighbor.from === currentNodeId ? randomNeighbor.to : randomNeighbor.from
+
+        minLQI = Math.min(minLQI, randomNeighbor.combinedLqi)
+        currentNodeId = neighborId
+      }
+
+      visitedNodeIds.push(currentNodeId) // Add the end node to the path
+
+      return { path: visitedNodeIds, minLQI }
+    },
+
+    /**
+     * Performs a Depth-First Search (DFS) algorithm to find the path with the minimum Link Quality Indicator (LQI) between two nodes.
+     *
+     * @param startNodeId - The ID of the starting node.
+     * @param endNodeId - The ID of the target node.
+     * @param bestResult - The current best result, containing the path and the minimum LQI.
+     * @returns The best result, containing the path and the minimum LQI.
+     */
+    dfsLQI (startNodeId, endNodeId, bestResult) {
+      const stack = [{ path: [startNodeId], minLQI: Infinity }] // Stack to hold paths
 
       while (stack.length > 0) {
-        const path = stack.pop()
-        const parentNodeId = path[path.length - 1]
+        const currentItem = stack.pop()
 
-        const connectedNodes = this.$refs.network.getConnectedNodes(parentNodeId)
-        for (const nodeId of connectedNodes) {
-          const node = this.nodesDict[nodeId]
+        if (currentItem.minLQI <= bestResult.minLQI) {
+          // console.log('SKIPPED path: ', JSON.stringify(currentItem))
+          continue
+        }
 
-          if (node.type === 'EndDevice') {
-            // blank by intention
-          } else if (node.type === 'Router') {
-            // avoid circular paths
-            if (!path.includes(nodeId)) {
-              // check if the current edge has a lower LQI than the current best => skip path
-              const edge = this.findEdge(parentNodeId, nodeId)
+        const currentPath = currentItem.path
+        const currentNodeId = currentPath[currentPath.length - 1]
+        const edges = this.edgesPerNode[currentNodeId]
 
-              if (edge !== undefined && edge.combinedLqi >= bestLqiMinimum) {
-                const newPath = [...path, nodeId]
-                stack.push(newPath)
-              }
+        for (let i = 0; i < edges.length; i++) {
+          const edge = edges[i]
+
+          if (edge.combinedLqi <= bestResult.minLQI) {
+            // console.log('Skipped path: ', edge.combinedLqi, currentPath, ' + ', edge)
+            continue
+          }
+
+          const neighborId = edge.from === currentNodeId ? edge.to : edge.from
+          if (neighborId === endNodeId) { // target found
+            bestResult = { path: [...currentPath, endNodeId], minLQI: Math.min(edge.combinedLqi, currentItem.minLQI) }
+            // console.log('New candidate: ', JSON.stringify(bestResult))
+
+            if (bestResult.minLQI === currentItem.minLQI) {
+              // every other edge cannot lead to more than the current best result
+              // console.log('Optimum found for: ', JSON.stringify(currentItem))
+              break
             }
-          } else if (node.type === 'Coordinator') {
-            if (nodeId === endNodeId) {
-              // endNodeId found
-              console.count('endNodeId found')              
-
-              // check if the current edge has a lower LQI than the current best => skip path
-              const edge = this.findEdge(parentNodeId, nodeId)
-!!!
-              if (edge !== undefined && edge.combinedLqi >= bestLqiMinimum) {
-                const pathCandidate = [...path, nodeId]
-                const lqi = this.weakestPathLQI(pathCandidate, bestLqiMinimum)
-
-                if (lqi > bestLqiMinimum) {
-                  bestLqiMinimum = lqi
-                  bestPath = pathCandidate
-
-                  console.count('stack.filter')
-                  stack = stack.filter(
-                    p => this.weakestPathLQI(p, bestLqiMinimum) > bestLqiMinimum
-                  )
-                }
-              }
-            } else {
-              console.count('stack.push')
-              stack.push([...path, nodeId])
-            }
+          } else if (!currentPath.includes(neighborId)) {
+            const newItem = { path: [...currentPath, neighborId], minLQI: Math.min(edge.combinedLqi, currentItem.minLQI) }
+            // console.count('Pushed path' + JSON.stringify(newItem))
+            stack.push(newItem)
           }
         }
       }
-      return bestPath
-    },
-    // return the path's smallest LQI, in case an LQI is smaller than currentMinLQI then the current smaller LQI value is returned
-    weakestPathLQI (path, currentMinLQI) {
-      // console.count('weakestPathLQI')
-      let lqiMin = 255
-      let parentNodeId = 0
 
-      for (const nodeId of path) {
-        if (parentNodeId !== 0) {
-          const edge = this.findEdge(parentNodeId, nodeId)
-
-          if (edge.combinedLqi < lqiMin) {
-            lqiMin = edge.combinedLqi
-            if (lqiMin < currentMinLQI) {
-              // you can stop this is worse than the current champion
-              return lqiMin
-            }
-          }
-        }
-        parentNodeId = nodeId
-      }
-      // console.log('avg LQI: ' + JSON.stringify(path) + '= ' + average)
-
-      return lqiMin
-    },
-    getEdgesFromPath (path) {
-      const edgesInPath = []
-      let parentNodeId = 0
-
-      path.forEach(nodeId => {
-        if (parentNodeId !== 0) {
-          const edge = this.findEdge(parentNodeId, nodeId)
-          edgesInPath.push(edge.id)
-        }
-        parentNodeId = nodeId
-      })
-
-      return edgesInPath
+      return bestResult
     },
     dragRelease () {
       // save state
@@ -518,18 +552,76 @@ export default {
     edgeColor (lqi) {
       return this.hsv2rgb(120 * lqi / 255, 1, 0.8)
     },
-    updateNodesDict () {
+    updateNodesHelper () {
       this.nodesDict = this.nodes.reduce((acc, n) => {
         acc[n.id] = n
         return acc
       }, {})
+
+      this.nodeIds = []
+      this.nodes.forEach(node => {
+        this.nodeIds.push(node.id)
+      })
     },
-    updateEdgesDict () {
+    updateEdgesHelper () {
       this.edgesDict = this.edges.reduce((acc, e) => {
         acc[e.id] = e
         return acc
       }, {})
     },
+    /**
+     * Function to create an edgesPerNode dictionary
+     *
+     * @param {Array<{ id: string }>} nodes - The array of nodes.
+     * @param {Array<{ from: string, to: string }>} edges - The array of edges.
+     */
+    createEdgesPerNode () {
+      this.edgesPerNode = {}
+
+      this.nodes.forEach(node => {
+        this.edgesPerNode[node.id] = []
+      })
+
+      this.edges.forEach(edge => {
+        this.edgesPerNode[edge.from].push(edge)
+        this.edgesPerNode[edge.to].push(edge)
+      })
+    },
+    findEdge (parentNodeId, nodeId) {
+      // console.count('findEdge')
+      const key1 = this.generateEdgeKey(parentNodeId, nodeId)
+      let edge = this.edgesDict[key1]
+
+      if (edge === undefined) {
+        const key2 = this.generateEdgeKey(nodeId, parentNodeId)
+        edge = this.edgesDict[key2]
+      }
+
+      if (edge === undefined) {
+        const parentNode = this.nodesDict[parentNodeId]
+        const node = this.nodesDict[nodeId]
+        console.error('No edge found between\n' + JSON.stringify(parentNode) + '\nand\n' + JSON.stringify(node))
+      }
+
+      return edge
+    },
+    getEdgesFromPath (path) {
+      const edgesInPath = []
+      let parentNodeId = 0
+
+      path.forEach(nodeId => {
+        if (parentNodeId !== 0) {
+          const edge = this.findEdge(parentNodeId, nodeId)
+          edgesInPath.push(edge.id)
+        }
+        parentNodeId = nodeId
+      })
+
+      return edgesInPath
+    },
+    // =====================================================
+    // update
+    // =====================================================
     update () {
       const attr = this.hass.states[this.config.entity].attributes
       if (!attr.nodes && !this.initialized) {
@@ -588,7 +680,7 @@ export default {
         }
         return node
       })
-      this.updateNodesDict()
+      this.updateNodesHelper()
       // console.log('Attr.links: ' + JSON.stringify(attr.links))
 
       // merge this.edges with this.processEdges(this.nodesDict, attr.links)
@@ -631,7 +723,8 @@ export default {
           return edge
         })
       // console.log('Processed Edges: ' + JSON.stringify(this.edges))
-      this.updateEdgesDict()
+      this.updateEdgesHelper()
+      this.createEdgesPerNode()
     }
   },
   mounted () {
