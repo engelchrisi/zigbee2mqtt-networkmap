@@ -1,3 +1,13 @@
+# Enhancements
+- Double click on a node to find its strongest path to the Coordinator. Strongest means that the weakest LQI of an edge is greater or equal the weakest LQI of alternative paths.
+- Choose the checkbox "End-Device Edges" to show all edges targeting end devices
+- Choose the checkbox "Router Edges" to show all edges targeting router or coordinator
+- In the "Weak edges" dropdown choose whether
+  - N/A: show them - do nothing
+  - filter them out (hide them)
+  - show them only (and hide others)
+- The "Strong edges" dropdown has the same effect as the "Weak edges" dropdown
+
 # zigbee2mqtt-networkmap
 
 [Custom Card](https://developers.home-assistant.io/docs/frontend/custom-ui/custom-card) for [Home Assistant](https://www.home-assistant.io/) to show the [Zigbee2mqtt](https://github.com/Koenkk/zigbee2mqtt/) network map with [vue-d3-network](https://github.com/emiliorizzo/vue-d3-network/).

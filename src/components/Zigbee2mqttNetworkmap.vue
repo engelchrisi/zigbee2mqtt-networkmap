@@ -260,7 +260,7 @@ export default {
         })
 
         if (bestNeighborId === null) {
-          console.log('No valid neighbor')
+          // console.log('No valid neighbor')
           return { path: null, minLQI: -Infinity }
         }
 
@@ -295,7 +295,7 @@ export default {
           .filter(edge => unvisitedNodeIds.has(edge.from) || unvisitedNodeIds.has(edge.to))
 
         if (unvisitedNeighbors.length === 0) {
-          console.log('No valid neighbor')
+          // console.log('No valid neighbor')
           return { path: null, minLQI: -Infinity }
         }
 
