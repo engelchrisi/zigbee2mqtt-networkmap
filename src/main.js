@@ -13,7 +13,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
     const devices = [
       {
         friendlyName: 'Coordinator',
-        ieeeAddr: 'node-01',
+        ieeeAddr: 'node-Coord',
         type: 'Coordinator'
       },
       {
@@ -21,7 +21,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         definition: {
           model: 'MCCGQ14LM'
         },
-        ieeeAddr: 'node-02',
+        ieeeAddr: 'node-Door',
         type: 'EndDevice'
       },
       {
@@ -29,7 +29,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         definition: {
           model: 'GS361A-H04'
         },
-        ieeeAddr: 'node-04',
+        ieeeAddr: 'node-Heating',
         type: 'EndDevice'
       },
       {
@@ -37,7 +37,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         definition: {
           model: '9290030675'
         },
-        ieeeAddr: 'node-05',
+        ieeeAddr: 'node-Motion',
         type: 'EndDevice'
       },
       {
@@ -45,7 +45,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         definition: {
           model: 'WSDCGQ11LM'
         },
-        ieeeAddr: 'node-06',
+        ieeeAddr: 'node-Humid',
         type: 'EndDevice'
       },
       {
@@ -53,7 +53,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         definition: {
           model: 'TYWB 4ch-RF'
         },
-        ieeeAddr: 'node-07',
+        ieeeAddr: 'node-Relay',
         type: 'Router'
       },
       {
@@ -61,7 +61,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         definition: {
           model: 'AC10691'
         },
-        ieeeAddr: 'node-08',
+        ieeeAddr: 'node-Plug',
         type: 'Router'
       },
       {
@@ -69,7 +69,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         definition: {
           model: 'SJCGQ11LM'
         },
-        ieeeAddr: 'node-09',
+        ieeeAddr: 'node-Water',
         type: 'EndDevice'
       },
       {
@@ -77,7 +77,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         definition: {
           model: 'R7049'
         },
-        ieeeAddr: 'node-10',
+        ieeeAddr: 'node-Smoke',
         type: 'EndDevice'
       },
       {
@@ -85,7 +85,7 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         definition: {
           model: 'E2204'
         },
-        ieeeAddr: 'node-11',
+        ieeeAddr: 'node-Tretakt',
         type: 'Router'
       }
     ]
@@ -95,78 +95,78 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         links: [
           {
             lqi: 17,
-            sourceIeeeAddr: 'node-04',
-            targetIeeeAddr: 'node-01'
+            sourceIeeeAddr: 'node-Heating',
+            targetIeeeAddr: 'node-Coord'
           },
           {
             lqi: 69,
-            sourceIeeeAddr: 'node-05',
-            targetIeeeAddr: 'node-01'
+            sourceIeeeAddr: 'node-Motion',
+            targetIeeeAddr: 'node-Coord'
           },
           {
             lqi: 13,
-            sourceIeeeAddr: 'node-06',
-            targetIeeeAddr: 'node-01'
+            sourceIeeeAddr: 'node-Humid',
+            targetIeeeAddr: 'node-Coord'
           },
           {
             lqi: 35,
-            sourceIeeeAddr: 'node-07',
-            targetIeeeAddr: 'node-01'
+            sourceIeeeAddr: 'node-Relay',
+            targetIeeeAddr: 'node-Coord'
           },
           {
             lqi: 41,
-            sourceIeeeAddr: 'node-01',
-            targetIeeeAddr: 'node-07'
+            sourceIeeeAddr: 'node-Coord',
+            targetIeeeAddr: 'node-Relay'
           },
           {
             lqi: 26,
             sourceIeeeAddr: 'node-03',
-            targetIeeeAddr: 'node-01'
+            targetIeeeAddr: 'node-Coord'
           },
           {
             lqi: 120,
-            sourceIeeeAddr: 'node-02',
-            targetIeeeAddr: 'node-01'
+            sourceIeeeAddr: 'node-Door',
+            targetIeeeAddr: 'node-Coord'
           },
           {
             lqi: 32,
-            sourceIeeeAddr: 'node-09',
-            targetIeeeAddr: 'node-01'
+            sourceIeeeAddr: 'node-Water',
+            targetIeeeAddr: 'node-Coord'
           },
           {
             lqi: 70,
-            sourceIeeeAddr: 'node-10',
-            targetIeeeAddr: 'node-01'
+            sourceIeeeAddr: 'node-Smoke',
+            targetIeeeAddr: 'node-Coord'
           },
           {
             lqi: 160,
-            sourceIeeeAddr: 'node-07',
-            targetIeeeAddr: 'node-08'
+            sourceIeeeAddr: 'node-Relay',
+            targetIeeeAddr: 'node-Plug'
           },
           {
             lqi: 65,
-            sourceIeeeAddr: 'node-08',
-            targetIeeeAddr: 'node-07'
+            sourceIeeeAddr: 'node-Plug',
+            targetIeeeAddr: 'node-Relay'
           },
           {
             lqi: 75,
-            sourceIeeeAddr: 'node-01',
-            targetIeeeAddr: 'node-08'
+            sourceIeeeAddr: 'node-Coord',
+            targetIeeeAddr: 'node-Plug'
           },
           {
             lqi: 250,
-            sourceIeeeAddr: 'node-08',
-            targetIeeeAddr: 'node-01'
+            sourceIeeeAddr: 'node-Plug',
+            targetIeeeAddr: 'node-Coord'
           },
           {
             lqi: 42,
-            sourceIeeeAddr: 'node-11',
-            targetIeeeAddr: 'node-08'
+            sourceIeeeAddr: 'node-Tretakt',
+            targetIeeeAddr: 'node-Plug'
           },
           {
             lqi: 84,
-            sourceIeeeAddr: 'node-08',
-            targetIeeeAddr: 'node-11'
+            sourceIeeeAddr: 'node-Plug',
+            targetIeeeAddr: 'node-Tretakt'
           }
         ],
         nodes: devices
@@ -175,63 +175,63 @@ customElements.whenDefined('zigbee2mqtt-networkmap').then(() => {
         links: [
           {
             lqi: 17,
-            sourceIeeeAddr: 'node-04',
-            targetIeeeAddr: 'node-01'
+            sourceIeeeAddr: 'node-Heating',
+            targetIeeeAddr: 'node-Coord'
           },
           {
             lqi: 69,
-            sourceIeeeAddr: 'node-05',
-            targetIeeeAddr: 'node-01'
+            sourceIeeeAddr: 'node-Motion',
+            targetIeeeAddr: 'node-Coord'
           },
           {
             lqi: 13,
-            sourceIeeeAddr: 'node-06',
-            targetIeeeAddr: 'node-08'
+            sourceIeeeAddr: 'node-Humid',
+            targetIeeeAddr: 'node-Plug'
           },
           {
             lqi: 35,
-            sourceIeeeAddr: 'node-07',
-            targetIeeeAddr: 'node-01'
+            sourceIeeeAddr: 'node-Relay',
+            targetIeeeAddr: 'node-Coord'
           },
           {
             lqi: 41,
-            sourceIeeeAddr: 'node-01',
-            targetIeeeAddr: 'node-07'
+            sourceIeeeAddr: 'node-Coord',
+            targetIeeeAddr: 'node-Relay'
           },
           {
             lqi: 47,
-            sourceIeeeAddr: 'node-02',
-            targetIeeeAddr: 'node-07'
+            sourceIeeeAddr: 'node-Door',
+            targetIeeeAddr: 'node-Relay'
           },
           {
             lqi: 32,
-            sourceIeeeAddr: 'node-09',
-            targetIeeeAddr: 'node-01'
+            sourceIeeeAddr: 'node-Water',
+            targetIeeeAddr: 'node-Coord'
           },
           {
             lqi: 70,
-            sourceIeeeAddr: 'node-10',
-            targetIeeeAddr: 'node-01'
+            sourceIeeeAddr: 'node-Smoke',
+            targetIeeeAddr: 'node-Coord'
           },
           {
             lqi: 80,
-            sourceIeeeAddr: 'node-07',
-            targetIeeeAddr: 'node-08'
+            sourceIeeeAddr: 'node-Relay',
+            targetIeeeAddr: 'node-Plug'
           },
           {
             lqi: 40,
-            sourceIeeeAddr: 'node-08',
-            targetIeeeAddr: 'node-07'
+            sourceIeeeAddr: 'node-Plug',
+            targetIeeeAddr: 'node-Relay'
           },
           {
             lqi: 90,
-            sourceIeeeAddr: 'node-01',
-            targetIeeeAddr: 'node-08'
+            sourceIeeeAddr: 'node-Coord',
+            targetIeeeAddr: 'node-Plug'
           },
           {
             lqi: 50,
-            sourceIeeeAddr: 'node-08',
-            targetIeeeAddr: 'node-01'
+            sourceIeeeAddr: 'node-Plug',
+            targetIeeeAddr: 'node-Coord'
           }
         ],
         nodes: devices

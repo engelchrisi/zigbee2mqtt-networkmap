@@ -187,27 +187,12 @@ export default {
       if (params.length > 0) {
         const clickedNodeId = params[0]
         const coordinatorNode = this.nodes.find(n => n.type === 'Coordinator')
-
-        const paths = this.findAllPaths(clickedNodeId, coordinatorNode.id)
-        console.log('After findAllPaths')
-        // console.log('findAllPaths => ' + JSON.stringify(paths))
-        if (paths.length === 0) {
-          return
-        }
-
-        // Find the path with the highest average LQI
-        console.log('Before find highest Min')
         let bestPath = []
-        let currentMinLQI = 0
-        paths.forEach(path => {
-          // const lqi = this.calculateAverageLQI(path)
-          const lqi = this.findWeakestLQI(path, currentMinLQI)
-          if (lqi > currentMinLQI) {
-            currentMinLQI = lqi
-            bestPath = path
-          }
-        })
-        console.log('After find highest Min => ' + currentMinLQI)
+
+        this.findLeastWeakPath()
+        // console.log('Before findAllPaths')
+        bestPath = this.findLeastWeakPath(clickedNodeId, coordinatorNode.id)
+        // console.log('After findAllPaths:' + JSON.stringify(bestPath))
 
         // Highlight the best path
         const highlightEdges = this.getEdgesFromPath(bestPath)
@@ -220,41 +205,102 @@ export default {
         })
       }
     },
+    arraysAreIdentical (arr1, arr2) {
+      if (arr1.length !== arr2.length) {
+        return false
+      }
+
+      return arr1.every((value, index) => value === arr2[index])
+    },
+
+    findEdge (parentNodeId, nodeId) {
+      // console.count('findEdge')
+
+      const key1 = this.generateEdgeKey(parentNodeId, nodeId)
+      let edge = this.edgesDict[key1]
+
+      if (edge === undefined) {
+        const key2 = this.generateEdgeKey(nodeId, parentNodeId)
+        edge = this.edgesDict[key2]
+      }
+
+      if (edge === undefined) {
+        const parentNode = this.nodesDict[parentNodeId]
+        const node = this.nodesDict[nodeId]
+
+        console.error('No edge found between\n' + JSON.stringify(parentNode) + '\nand\n' + JSON.stringify(node))
+      }
+
+      return edge
+    },
+
     // a path is an arrary of NodeIds
-    findAllPaths (startNodeId, endNodeId) {
-      const stack = [[startNodeId]]
-      const paths = []
+    findLeastWeakPath (startNodeId, endNodeId) {
+      let stack = [[startNodeId]]
+      let bestPath = []
+      let bestLqiMinimum = 0
 
       while (stack.length > 0) {
         const path = stack.pop()
-        const lastNodeId = path[path.length - 1]
+        const parentNodeId = path[path.length - 1]
 
-        if (lastNodeId === endNodeId) {
-          paths.push(path)
-        } else {
-          const connectedNodes = this.$refs.network.getConnectedNodes(lastNodeId)
-          connectedNodes.forEach(nodeId => {
+        const connectedNodes = this.$refs.network.getConnectedNodes(parentNodeId)
+        for (const nodeId of connectedNodes) {
+          const node = this.nodesDict[nodeId]
+
+          if (node.type === 'EndDevice') {
+            // blank by intention
+          } else if (node.type === 'Router') {
             // avoid circular paths
             if (!path.includes(nodeId)) {
+              // check if the current edge has a lower LQI than the current best => skip path
+              const edge = this.findEdge(parentNodeId, nodeId)
+
+              if (edge !== undefined && edge.combinedLqi >= bestLqiMinimum) {
+                const newPath = [...path, nodeId]
+                stack.push(newPath)
+              }
+            }
+          } else if (node.type === 'Coordinator') {
+            if (nodeId === endNodeId) {
+              // endNodeId found
+              console.count('endNodeId found')              
+
+              // check if the current edge has a lower LQI than the current best => skip path
+              const edge = this.findEdge(parentNodeId, nodeId)
+!!!
+              if (edge !== undefined && edge.combinedLqi >= bestLqiMinimum) {
+                const pathCandidate = [...path, nodeId]
+                const lqi = this.weakestPathLQI(pathCandidate, bestLqiMinimum)
+
+                if (lqi > bestLqiMinimum) {
+                  bestLqiMinimum = lqi
+                  bestPath = pathCandidate
+
+                  console.count('stack.filter')
+                  stack = stack.filter(
+                    p => this.weakestPathLQI(p, bestLqiMinimum) > bestLqiMinimum
+                  )
+                }
+              }
+            } else {
+              console.count('stack.push')
               stack.push([...path, nodeId])
             }
-          })
+          }
         }
       }
-
-      return paths
+      return bestPath
     },
-    // return the path's smallest LQI, in case an LQI is smaller than currentMinLQI then this value is returned
-    // and search is stopped
-    findWeakestLQI (path, currentMinLQI) {
+    // return the path's smallest LQI, in case an LQI is smaller than currentMinLQI then the current smaller LQI value is returned
+    weakestPathLQI (path, currentMinLQI) {
+      // console.count('weakestPathLQI')
       let lqiMin = 255
       let parentNodeId = 0
 
-      path.forEach(nodeId => {
+      for (const nodeId of path) {
         if (parentNodeId !== 0) {
-          const key1 = this.generateEdgeKey(parentNodeId, nodeId)
-          const key2 = this.generateEdgeKey(nodeId, parentNodeId)
-          const edge = this.edgesDict[key1] || this.edgesDict[key2]
+          const edge = this.findEdge(parentNodeId, nodeId)
 
           if (edge.combinedLqi < lqiMin) {
             lqiMin = edge.combinedLqi
@@ -265,31 +311,10 @@ export default {
           }
         }
         parentNodeId = nodeId
-      })
+      }
       // console.log('avg LQI: ' + JSON.stringify(path) + '= ' + average)
 
       return lqiMin
-    },
-    calculateAverageLQI (path) {
-      let lqiSum = 0
-      const edgeCount = path.length - 1
-      let parentNodeId = 0
-
-      path.forEach(nodeId => {
-        if (parentNodeId !== 0) {
-          const key1 = this.generateEdgeKey(parentNodeId, nodeId)
-          const key2 = this.generateEdgeKey(nodeId, parentNodeId)
-          const edge = this.edgesDict[key1] || this.edgesDict[key2]
-
-          lqiSum += edge.combinedLqi
-        }
-        parentNodeId = nodeId
-      })
-
-      const average = lqiSum / edgeCount
-      // console.log('avg LQI: ' + JSON.stringify(path) + '= ' + average)
-
-      return average
     },
     getEdgesFromPath (path) {
       const edgesInPath = []
@@ -297,10 +322,7 @@ export default {
 
       path.forEach(nodeId => {
         if (parentNodeId !== 0) {
-          const key1 = this.generateEdgeKey(parentNodeId, nodeId)
-          const key2 = this.generateEdgeKey(nodeId, parentNodeId)
-          const edge = this.edgesDict[key1] || this.edgesDict[key2]
-
+          const edge = this.findEdge(parentNodeId, nodeId)
           edgesInPath.push(edge.id)
         }
         parentNodeId = nodeId
@@ -554,7 +576,7 @@ export default {
               // size: 14
             }
           },
-          label: d.friendlyName + ' (' + d.ieeeAddr + ')',
+          label: d.friendlyName /* + ' (' + d.ieeeAddr + ')' */,
           type: d.type,
           shape: 'circularImage'
         }
@@ -601,7 +623,7 @@ export default {
               strokeColor: edgeColor, // Stroke color same as background to create padding effect
               size: e.isWeak ? 14 : 12 // Font size in pixels
             },
-            label: this.showLqi ? lqi.toString() + ' (' + edgeId + ')' : '',
+            label: this.showLqi ? lqi.toString() /* + ' (' + edgeId + ')' */ : '',
             // e.lqi.toString() + (e.reverseEdge ? '/' + e.reverseEdge.lqi : '') : ' '
             // for edges in both directions the average out of the 2 LQIs, otherwise e.LQI
             combinedLqi: e.combinedLqi
