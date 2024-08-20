@@ -288,12 +288,11 @@ export default {
       const coordinatorNode = this.visibleNodes.find(n => n.type === 'Coordinator')
 
       // Running the Modified Nearest Neighbor algorithm
-      // search by intention backwards from endNodeId to startNodeId
-      let firstResult = this.tspNearestNeighborLQI(this.nodeIds, coordinatorNode.id, clickedNodeId)
+      let firstResult = this.tspNearestNeighborLQI(this.nodeIds, clickedNodeId, coordinatorNode.id)
 
       // if nearest neighbor fails, try random neighbor
       while (firstResult.path === null) {
-        firstResult = this.tspRandomNeighborLQI(this.nodeIds, coordinatorNode.id, clickedNodeId)
+        firstResult = this.tspRandomNeighborLQI(this.nodeIds, clickedNodeId, coordinatorNode.id)
       }
 
       // Log the Nearest Neighbor results
@@ -301,8 +300,7 @@ export default {
       console.log('First Minimum LQI: ', firstResult.minLQI)
 
       // Running DFS with the LQI constraint
-      // search by intention backwards from endNodeId to startNodeId
-      const bestResult = this.dfsLQI(coordinatorNode.id, clickedNodeId, firstResult)
+      const bestResult = this.dfsLQI(clickedNodeId, coordinatorNode.id, firstResult)
       bestResult.edges = this.getEdgesFromPath(bestResult.path)
       bestResult.edgeIds = bestResult.edges.map(e => e.id)
 
