@@ -1,4 +1,5 @@
-1. Bug: endless loop double click on node when router edges are invisible
+- showLQI off has no effect
+- Bug: endless loop double click on node when router edges are invisible
         while (firstResult.path === null) {
           firstResult = this.tspRandomNeighborLQI(this.nodeIds, coordinatorNode.id, clickedNodeId)
         }

@@ -12,8 +12,8 @@
     <network
       class="network"
       ref="network"
-      v-bind:nodes="nodes"
-      v-bind:edges="edges"
+      v-bind:nodes="visibleNodes"
+      v-bind:edges="visibleEdges"
       v-bind:options="options"
       v-on:click="networkEvent('click')"
       v-on:double-click="networkEvent('doubleClick')"
@@ -97,6 +97,63 @@
 import { Network } from 'vue-visjs'
 import isEqual from 'lodash.isequal'
 
+class Node {
+  constructor (hassioNode, attr, imageUrl, isUnconnected) {
+    this.id = hassioNode.ieeeAddr
+    this.brokenImage = './zigbee_icon.png'
+    this.image = imageUrl(hassioNode)
+    this.imagePadding = 8
+    this.font = {
+      size: 10
+    }
+    this.shadow = true
+    this.physics = true
+    this.borderWidth = hassioNode.type !== 'EndDevice' ? 2 : 1
+    this.color = {
+      background: isUnconnected(hassioNode, attr.links) ? '#FF0000' : '#ffffff',
+      border: isUnconnected(hassioNode, attr.links) ? '#FF0000' : (hassioNode.type === 'EndDevice' ? '#3E8CFF' : '#632289'),
+      highlight: {
+        border: '#6D6B75',
+        background: '#66B0FB'
+      }
+    }
+    this.label = hassioNode.friendlyName // + ' (' + d.ieeeAddr + ')'
+    this.type = hassioNode.type
+    this.shape = 'circularImage'
+  }
+}
+
+class Edge {
+  constructor (hassioEdge, nodesDict, edgeColorFunc, generateEdgeKeyFunc, showLqi) {
+    const lqi = hassioEdge.combinedLqi
+    const edgeColor = edgeColorFunc(lqi)
+    const edgeId = generateEdgeKeyFunc(hassioEdge.sourceIeeeAddr, hassioEdge.targetIeeeAddr)
+
+    this.id = edgeId
+    this.hidden = hassioEdge.hidden
+    this.from = hassioEdge.sourceIeeeAddr
+    this.to = hassioEdge.targetIeeeAddr
+    this.dashes = nodesDict[hassioEdge.sourceIeeeAddr] && nodesDict[hassioEdge.sourceIeeeAddr].type === 'EndDevice' ? [5, 5] : [0, 0]
+    this.width = 1
+    this.selectionWidth = 2
+    this.color = {
+      color: edgeColor
+    }
+    this.smooth = {
+      enabled: true,
+      type: 'dynamic'
+    }
+    this.font = {
+      color: hassioEdge.isWeak ? '#FFFFFF' : '#000000',
+      strokeWidth: hassioEdge.isWeak ? 5 : 0,
+      strokeColor: edgeColor,
+      size: hassioEdge.isWeak ? 14 : 12
+    }
+    this.label = showLqi ? lqi.toString() : ''
+    this.combinedLqi = hassioEdge.combinedLqi
+  }
+}
+
 export default {
   components: {
     Network
@@ -107,14 +164,28 @@ export default {
       initialized: false,
       config: {},
       hass: null,
-      nodes: [],
-      edges: [],
+      // network data model - s. v-bind
+      visibleNodes: [],
+      visibleEdges: [],
+      // this.edges does not contain all invisible edges. In order to calculate paths through invisible edges
+      // we need them all.
+      allEdges: [],
+      // performance helper
+      nodesDict: {},
+      nodeIds: [],
+      edgesDict: {},
+      edgesPerNode: {},
+      // ----------------
       state: '',
+      // UI Options
       showLqi: false,
       showEnddeviceEdges: true,
       showRouterEdges: true,
       selectedWeakEdgeOption: 'na',
       selectedStrongEdgeOption: 'na',
+      // ----------------
+      // avoid click/select when a double click will follow immediately
+      doubleClickTimeout: null,
       options: {
         autoResize: true,
         height: this.calcWindowHeight().toString(),
@@ -160,13 +231,31 @@ export default {
   },
   methods: {
     networkEvent (eventName) {
+      // console.log(eventName)
       if (eventName === 'select-node') {
-        this.handleSelectNode()
+        console.log(eventName)
+        // Set a timeout to handle single click after 500ms in case no double click has happened inbetween - s. clearTimeout
+        this.doubleClickTimeout = setTimeout(() => {
+          this.handleSelectNode()
+        }, 300 /* ms */)
       } else if (eventName === 'deselect-node') {
-        // console.log(eventName)
+        // Clear the single click timeout to prevent it from firing
+        clearTimeout(this.doubleClickTimeout)
+        console.log(eventName)
+        this.handleDeselectNode()
       } else if (eventName === 'doubleClick') {
+        // Clear the single click timeout to prevent it from firing
+        clearTimeout(this.doubleClickTimeout)
+        console.log(eventName)
         this.handleDoubleClick()
+      } else if (eventName === 'select') {
+        console.log(eventName)
       }
+    },
+    // normal selection of clicked node + all connected edges
+    handleDeselectNode () {
+      console.log('handleDeselectNode => ' + JSON.stringify(this.$refs.network.getSelectedNodes()))
+      this.$refs.network.unselectAll()
     },
     // normal selection of clicked node + all connected edges
     handleSelectNode () {
@@ -182,44 +271,48 @@ export default {
     },
     // select path to coordinator with highest avergage LQI
     handleDoubleClick () {
-      console.log('================================')
+      // Clear the single click timeout to prevent it from firing
+      clearTimeout(this.doubleClickTimeout)
+
       const params = this.$refs.network.getSelectedNodes()
-
-      if (params.length > 0) {
-        const clickedNodeId = params[0]
-        const coordinatorNode = this.nodes.find(n => n.type === 'Coordinator')
-
-        // Running the Modified Nearest Neighbor algorithm
-        // search by intention backwards from endNodeId to startNodeId
-        let firstResult = this.tspNearestNeighborLQI(this.nodeIds, coordinatorNode.id, clickedNodeId)
-
-        // if nearest neighbor fails, try random neighbor
-        while (firstResult.path === null) {
-          firstResult = this.tspRandomNeighborLQI(this.nodeIds, coordinatorNode.id, clickedNodeId)
-        }
-
-        // Log the Nearest Neighbor results
-        console.log('First Path: ', firstResult.path)
-        console.log('First Minimum LQI: ', firstResult.minLQI)
-
-        // Running DFS with the LQI constraint
-        // search by intention backwards from endNodeId to startNodeId
-        const bestResult = this.dfsLQI(coordinatorNode.id, clickedNodeId, firstResult)
-
-        // Log all valid paths
-        console.log('Best Path: ', bestResult.path)
-        console.log('Best Minimum LQI: ', bestResult.minLQI)
-
-        // Highlight the best path
-        const highlightEdges = this.getEdgesFromPath(bestResult.path)
-
-        this.$refs.network.setSelection({
-          nodes: bestResult.path,
-          edges: highlightEdges
-        }, {
-          highlightEdges: false
-        })
+      if (params.length <= 0) {
+        return
       }
+
+      console.log('================================')
+      const clickedNodeId = params[0]
+      const coordinatorNode = this.visibleNodes.find(n => n.type === 'Coordinator')
+
+      // Running the Modified Nearest Neighbor algorithm
+      // search by intention backwards from endNodeId to startNodeId
+      let firstResult = this.tspNearestNeighborLQI(this.nodeIds, coordinatorNode.id, clickedNodeId)
+
+      // if nearest neighbor fails, try random neighbor
+      while (firstResult.path === null) {
+        firstResult = this.tspRandomNeighborLQI(this.nodeIds, coordinatorNode.id, clickedNodeId)
+      }
+
+      // Log the Nearest Neighbor results
+      console.log('First Path: ', firstResult.path)
+      console.log('First Minimum LQI: ', firstResult.minLQI)
+
+      // Running DFS with the LQI constraint
+      // search by intention backwards from endNodeId to startNodeId
+      const bestResult = this.dfsLQI(coordinatorNode.id, clickedNodeId, firstResult)
+
+      // Log all valid paths
+      console.log('Best Path: ', bestResult.path)
+      console.log('Best Minimum LQI: ', bestResult.minLQI)
+
+      // Highlight the best path
+      const highlightEdges = this.getEdgesFromPath(bestResult.path)
+
+      this.$refs.network.setSelection({
+        nodes: bestResult.path,
+        edges: highlightEdges
+      }, {
+        highlightEdges: false
+      })
     },
     arraysAreIdentical (arr1, arr2) {
       if (arr1.length !== arr2.length) {
@@ -391,20 +484,20 @@ export default {
     // in target matches an object in source (i.e., the keys match), the target object is updated
     // with properties from the source object. If no match is found for an object in source,
     // it is added to the result. The function returns this merged array as the result.
-    merge (target, source, tkey, skey, map) {
+    merge (target, tkeyFunc, source, skeyFunc, mapFunc) {
       const result = []
       const store = {}
 
       // Populating the store with source Objects:
       if (source) {
         source.forEach(e => {
-          const key = skey(e)
-          store[key] = map(e)
+          const key = skeyFunc(e)
+          store[key] = mapFunc(e)
         })
       }
       // Merging target Objects with source Data:
       target.forEach((e, i) => {
-        const key = tkey(e)
+        const key = tkeyFunc(e)
         if (key in store) {
           for (const k in store[key]) {
             e[k] = store[key][k]
@@ -421,7 +514,7 @@ export default {
     },
     stabilized () {
       // switch of physics after initial stabilization
-      this.nodes.forEach(node => {
+      this.visibleNodes.forEach(node => {
         node.physics = false
       })
     },
@@ -476,25 +569,28 @@ export default {
         return './zigbee_icon.png'
       }
     },
-    processEdges (nodesDict, edges) {
-      const nodeIDs = Object.keys(nodesDict)
-      if (!nodeIDs || !edges) return null
+    processEdges (hassioEdges, mapFunc) {
+      const nodesDict = this.nodesDict
+      if (!this.nodeIds || !hassioEdges) return null
 
       // consider only edges whose source and target node exist
-      edges = edges.filter(
-        e => nodeIDs.includes(e.sourceIeeeAddr) &&
-           nodeIDs.includes(e.targetIeeeAddr)
-      )
-      edges.forEach(edge => {
+      hassioEdges = hassioEdges.filter(e => this.nodeIds.includes(e.sourceIeeeAddr) && this.nodeIds.includes(e.targetIeeeAddr))
+      hassioEdges.forEach(edge => {
         edge.hidden = false
 
         // combine edges in both directions source <=> target
         edge.reverseEdge = null
-        const reverseEdge = edges.find(e => e.sourceIeeeAddr === edge.targetIeeeAddr && e.targetIeeeAddr === edge.sourceIeeeAddr)
+        const reverseEdge = hassioEdges.find(e => e.sourceIeeeAddr === edge.targetIeeeAddr && e.targetIeeeAddr === edge.sourceIeeeAddr)
         if (reverseEdge) {
           reverseEdge.hidden = true
           edge.reverseEdge = reverseEdge
           edge.combinedLqi = Math.round((edge.lqi + reverseEdge.lqi) / 2)
+
+          // Remove the reverse edge from the edges array
+          const index = hassioEdges.findIndex(e => e === reverseEdge)
+          if (index !== -1) {
+            hassioEdges.splice(index, 1)
+          }
         } else {
           edge.combinedLqi = edge.lqi
         }
@@ -540,10 +636,10 @@ export default {
         }
       })
 
+      this.allEdges = hassioEdges.map(e => mapFunc(e))
+
       // return only visible edges
-      return edges.filter(
-        e => !e.hidden
-      )
+      return this.allEdges.filter(e => !e.hidden)
     },
     hsv2rgb (h, s, v) {
       const f = (n, k = (n + h / 60) % 6) => v - v * s * Math.max(Math.min(k, 4 - k, 1), 0)
@@ -553,21 +649,20 @@ export default {
       return this.hsv2rgb(120 * lqi / 255, 1, 0.8)
     },
     updateNodesHelper () {
-      this.nodesDict = this.nodes.reduce((acc, n) => {
+      this.nodesDict = this.visibleNodes.reduce((acc, n) => {
         acc[n.id] = n
         return acc
       }, {})
 
-      this.nodeIds = []
-      this.nodes.forEach(node => {
-        this.nodeIds.push(node.id)
-      })
+      this.nodeIds = Object.keys(this.nodesDict)
     },
     updateEdgesHelper () {
-      this.edgesDict = this.edges.reduce((acc, e) => {
+      this.edgesDict = this.allEdges.reduce((acc, e) => {
         acc[e.id] = e
         return acc
       }, {})
+
+      this.createEdgesPerNode(this.allEdges)
     },
     /**
      * Function to create an edgesPerNode dictionary
@@ -575,14 +670,14 @@ export default {
      * @param {Array<{ id: string }>} nodes - The array of nodes.
      * @param {Array<{ from: string, to: string }>} edges - The array of edges.
      */
-    createEdgesPerNode () {
+    createEdgesPerNode (edges) {
       this.edgesPerNode = {}
 
-      this.nodes.forEach(node => {
+      this.visibleNodes.forEach(node => {
         this.edgesPerNode[node.id] = []
       })
 
-      this.edges.forEach(edge => {
+      edges.forEach(edge => {
         this.edgesPerNode[edge.from].push(edge)
         this.edgesPerNode[edge.to].push(edge)
       })
@@ -623,108 +718,49 @@ export default {
     // update
     // =====================================================
     update () {
-      const attr = this.hass.states[this.config.entity].attributes
+      const attr = this.hass.states[this.config.entity].attributes // TODO rename
       if (!attr.nodes && !this.initialized) {
         this.initialized = true
         this.refresh()
         return
       }
       const layout = this.hass.states[this.config.layout_entity] ? this.hass.states[this.config.layout_entity].attributes : null
-      // console.log('layout' + JSON.stringify(layout))
       this.showLqi = layout ? layout.showLqi || false : false
       this.showEnddeviceEdges = layout ? layout.showEnddeviceEdges || false : false
       this.showRouterEdges = layout ? layout.showRouterEdges || false : false
       this.selectedWeakEdgeOption = layout ? layout.selectedWeakEdgeOption || 'na' : 'na'
       this.selectedStrongEdgeOption = layout ? layout.selectedStrongEdgeOption || 'na' : 'na'
-      // console.log('Nodes: ' + JSON.stringify(this.nodes))
-      // console.log('Attr. Nodes: ' + JSON.stringify(attr.nodes))
+
+      // /////////////////////////////////
+      // nodes update
 
       // merge this.nodes with attr.node
-      this.nodes = this.merge(this.nodes, attr.nodes, d => d.id, d => d.ieeeAddr, d => {
-        const node = {
-          id: d.ieeeAddr,
-          brokenImage: './zigbee_icon.png',
-          image: this.imageUrl(d),
-          imagePadding: 8,
-          font: {
-            size: 10
-          },
-          shadow: true,
-          /*
-          widthConstraint: {
-            maximum: 70
-          },
-          */
-          physics: true,
-          borderWidth: d.type !== 'EndDevice' ? 2 : 1,
-          color: {
-            background: this.isUnconnected(d, attr.links) ? '#FF0000' : '#ffffff',
-            border: this.isUnconnected(d, attr.links) ? '#FF0000' : (d.type === 'EndDevice' ? '#3E8CFF' : '#632289'),
-            highlight: {
-              border: '#6D6B75',
-              background: '#66B0FB'
-              // strokeWidth: 5,
-              // strokeColor: '#FF0000',
-              // size: 14
-            }
-          },
-          label: d.friendlyName /* + ' (' + d.ieeeAddr + ')' */,
-          type: d.type,
-          shape: 'circularImage'
-        }
-        // set layout, if saved previously
-        if (layout && layout[d.ieeeAddr] && layout[d.ieeeAddr].x) {
-          node.x = layout[d.ieeeAddr].x
-          node.y = layout[d.ieeeAddr].y
-          node.physics = false
-        }
-        return node
-      })
-      this.updateNodesHelper()
-      // console.log('Attr.links: ' + JSON.stringify(attr.links))
-
-      // merge this.edges with this.processEdges(this.nodesDict, attr.links)
-      this.edges = this.merge(
-        this.edges,
-        this.processEdges(this.nodesDict, attr.links),
-        e => this.generateEdgeKey(e.sid, e.tid),
-        e => this.generateEdgeKey(e.sourceIeeeAddr, e.targetIeeeAddr),
-        e => {
-          const lqi = e.combinedLqi
-          const edgeColor = this.edgeColor(lqi)
-          const edgeId = this.generateEdgeKey(e.sourceIeeeAddr, e.targetIeeeAddr)
-          const edge = {
-            id: edgeId,
-            from: e.sourceIeeeAddr,
-            to: e.targetIeeeAddr,
-            dashes: this.nodesDict[e.sourceIeeeAddr] && this.nodesDict[e.sourceIeeeAddr].type === 'EndDevice' ? [5, 5] : [0, 0],
-            width: 1,
-            selectionWidth: 2,
-            color: {
-              color: edgeColor
-            },
-            smooth: {
-              enabled: true,
-              type: 'dynamic'
-            },
-            font: {
-              color: e.isWeak ? '#FFFFFF' : '#000000', // Text color
-              // face: 'arial', // Font family
-              // background: edgeColor, // Background color
-              strokeWidth: e.isWeak ? 5 : 0, // Simulated padding by making the stroke wider
-              strokeColor: edgeColor, // Stroke color same as background to create padding effect
-              size: e.isWeak ? 14 : 12 // Font size in pixels
-            },
-            label: this.showLqi ? lqi.toString() /* + ' (' + edgeId + ')' */ : '',
-            // e.lqi.toString() + (e.reverseEdge ? '/' + e.reverseEdge.lqi : '') : ' '
-            // for edges in both directions the average out of the 2 LQIs, otherwise e.LQI
-            combinedLqi: e.combinedLqi
+      this.visibleNodes = this.merge(this.visibleNodes, d => d.id,
+        attr.nodes, hassioNode => hassioNode.ieeeAddr,
+        hassioNode => {
+          const node = new Node(hassioNode, attr, this.imageUrl, this.isUnconnected)
+          // set layout, if saved previously
+          if (layout && layout[hassioNode.ieeeAddr] && layout[hassioNode.ieeeAddr].x) {
+            node.x = layout[hassioNode.ieeeAddr].x
+            node.y = layout[hassioNode.ieeeAddr].y
+            node.physics = false
           }
-          return edge
+          return node
         })
-      // console.log('Processed Edges: ' + JSON.stringify(this.edges))
+      this.updateNodesHelper()
+
+      // /////////////////////////////////
+      // edges update
+
+      const newVisibleEdges = this.processEdges(attr.links,
+        hassioEdge => new Edge(hassioEdge, this.nodesDict, this.edgeColor, this.generateEdgeKey, this.showLqi))
+
+      // merge this.visibleEdges with the result of this.processEdges
+      this.visibleEdges = this.merge(
+        this.visibleEdges, e => e.id,
+        newVisibleEdges, e => e.id,
+        e => e)
       this.updateEdgesHelper()
-      this.createEdgesPerNode()
     }
   },
   mounted () {
