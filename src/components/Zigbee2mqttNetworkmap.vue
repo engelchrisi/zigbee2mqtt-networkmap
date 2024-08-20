@@ -279,6 +279,12 @@ export default {
 
       console.log('================================')
       const clickedNodeId = params[0]
+
+      if (this.edgesPerNode[clickedNodeId].length === 0) {
+        // single node without edges
+        return
+      }
+
       const coordinatorNode = this.visibleNodes.find(n => n.type === 'Coordinator')
 
       // Running the Modified Nearest Neighbor algorithm
