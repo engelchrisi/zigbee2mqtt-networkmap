@@ -4,5 +4,5 @@
           firstResult = this.tspRandomNeighborLQI(this.nodeIds, coordinatorNode.id, clickedNodeId)
         }
 
-=> Include invisible edges in path calculation.
+
 

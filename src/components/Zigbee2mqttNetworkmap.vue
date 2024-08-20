@@ -165,16 +165,16 @@ export default {
       config: {},
       hass: null,
       // network data model - s. v-bind
-      visibleNodes: [],
-      visibleEdges: [],
+      visibleNodes: /** @type {Node[]} */ [], // An array intended to hold instances of the Node class
+      visibleEdges: /** @type {Edge[]} */ [], // An array intended to hold instances of the Edge class
       // this.edges does not contain all invisible edges. In order to calculate paths through invisible edges
       // we need them all.
-      allEdges: [],
+      allEdges: /** @type {Edge[]} */ [],
       // performance helper
-      nodesDict: {},
-      nodeIds: [],
-      edgesDict: {},
-      edgesPerNode: {},
+      nodesDict: /**  @type {Record<string, Node>} */ {}, // f(node-key) = node
+      nodeIds: /** @type {string[]} */ [],
+      edgesDict: /**  @type {Record<string, Edge>} */ {}, // f(edge-key) = edge
+      edgesPerNode: /**  @type {Record<string, Edge[]>} */ {}, // f(node-key) = array of all connected edges
       // ----------------
       state: '',
       // UI Options
@@ -235,6 +235,7 @@ export default {
       if (eventName === 'select-node') {
         console.log(eventName)
         // Set a timeout to handle single click after 500ms in case no double click has happened inbetween - s. clearTimeout
+        clearTimeout(this.doubleClickTimeout)
         this.doubleClickTimeout = setTimeout(() => {
           this.handleSelectNode()
         }, 300 /* ms */)
@@ -271,9 +272,6 @@ export default {
     },
     // select path to coordinator with highest avergage LQI
     handleDoubleClick () {
-      // Clear the single click timeout to prevent it from firing
-      clearTimeout(this.doubleClickTimeout)
-
       const params = this.$refs.network.getSelectedNodes()
       if (params.length <= 0) {
         return
@@ -299,17 +297,29 @@ export default {
       // Running DFS with the LQI constraint
       // search by intention backwards from endNodeId to startNodeId
       const bestResult = this.dfsLQI(coordinatorNode.id, clickedNodeId, firstResult)
+      bestResult.edges = this.getEdgesFromPath(bestResult.path)
+      bestResult.edgeIds = bestResult.edges.map(e => e.id)
 
       // Log all valid paths
       console.log('Best Path: ', bestResult.path)
       console.log('Best Minimum LQI: ', bestResult.minLQI)
 
-      // Highlight the best path
-      const highlightEdges = this.getEdgesFromPath(bestResult.path)
+      // unhide in case they are filtered out ("Router Edges" checkbox e.g.)
+      let refreshNeeded = false
+      bestResult.edges.forEach(edge => {
+        if (edge.hidden) {
+          edge.hidden = false
+          this.visibleEdges.push(edge)
+          refreshNeeded = true
+        }
+      })
+      if (refreshNeeded) {
+        this.$refs.network.setData(this.visibleNodes, this.visibleEdges)
+      }
 
       this.$refs.network.setSelection({
         nodes: bestResult.path,
-        edges: highlightEdges
+        edges: bestResult.edgeIds
       }, {
         highlightEdges: false
       })
@@ -486,29 +496,29 @@ export default {
     // it is added to the result. The function returns this merged array as the result.
     merge (target, tkeyFunc, source, skeyFunc, mapFunc) {
       const result = []
-      const store = {}
+      const sourceDict = {}
 
-      // Populating the store with source Objects:
+      // Populating sourceDict with source Objects:
       if (source) {
         source.forEach(e => {
           const key = skeyFunc(e)
-          store[key] = mapFunc(e)
+          sourceDict[key] = mapFunc(e)
         })
       }
       // Merging target Objects with source Data:
       target.forEach((e, i) => {
         const key = tkeyFunc(e)
-        if (key in store) {
-          for (const k in store[key]) {
-            e[k] = store[key][k]
+        if (key in sourceDict) {
+          for (const k in sourceDict[key]) {
+            e[k] = sourceDict[key][k]
           }
           result.push(e)
-          delete store[key]
+          delete sourceDict[key]
         }
       })
       // Adding Remaining source Objects:
-      for (const k in store) {
-        result.push(store[k])
+      for (const k in sourceDict) {
+        result.push(sourceDict[k])
       }
       return result
     },
@@ -571,7 +581,9 @@ export default {
     },
     processEdges (hassioEdges, mapFunc) {
       const nodesDict = this.nodesDict
-      if (!this.nodeIds || !hassioEdges) return null
+      if (!this.nodeIds || !hassioEdges) {
+        return null
+      }
 
       // consider only edges whose source and target node exist
       hassioEdges = hassioEdges.filter(e => this.nodeIds.includes(e.sourceIeeeAddr) && this.nodeIds.includes(e.targetIeeeAddr))
@@ -707,7 +719,7 @@ export default {
       path.forEach(nodeId => {
         if (parentNodeId !== 0) {
           const edge = this.findEdge(parentNodeId, nodeId)
-          edgesInPath.push(edge.id)
+          edgesInPath.push(edge)
         }
         parentNodeId = nodeId
       })
