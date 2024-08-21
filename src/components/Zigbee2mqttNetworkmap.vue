@@ -154,7 +154,7 @@ class Edge {
       color: 'white',
       strokeWidth: 0,
       strokeColor: 'black', // edgeColor,
-      size: hassioEdge.isWeak || hassioEdge.isStrong ? 14 : 12,
+      size: 14,
       background: hassioEdge.isWeak ? 'red' : edgeColor
     }
     this.label = showLqi ? lqi.toString() : ''
