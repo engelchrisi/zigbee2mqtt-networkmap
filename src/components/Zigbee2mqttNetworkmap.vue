@@ -130,6 +130,7 @@ class Edge {
     const edgeId = generateEdgeKeyFunc(hassioEdge.sourceIeeeAddr, hassioEdge.targetIeeeAddr)
 
     this.id = edgeId
+    this.lqi = lqi
     this.hidden = hassioEdge.hidden
     this.from = hassioEdge.sourceIeeeAddr
     this.to = hassioEdge.targetIeeeAddr
@@ -139,18 +140,56 @@ class Edge {
     this.color = {
       color: edgeColor
     }
+    this.background = {
+      enabled: false,
+      color: 'rgba(111,111,111,0.5)',
+      size: 10
+      // dashes: [20, 10]
+    }
     this.smooth = {
       enabled: true,
       type: 'dynamic'
     }
     this.font = {
-      color: hassioEdge.isWeak ? '#FFFFFF' : '#000000',
-      strokeWidth: hassioEdge.isWeak ? 5 : 0,
-      strokeColor: edgeColor,
-      size: hassioEdge.isWeak ? 14 : 12
+      color: 'white',
+      strokeWidth: 0,
+      strokeColor: 'black', // edgeColor,
+      size: hassioEdge.isWeak || hassioEdge.isStrong ? 14 : 12,
+      background: hassioEdge.isWeak ? 'red' : edgeColor
     }
     this.label = showLqi ? lqi.toString() : ''
-    this.combinedLqi = hassioEdge.combinedLqi
+  }
+}
+
+class Path {
+  constructor (nodeIds, minLQI, getEdgesFromPathFunc) {
+    this.nodeIds = nodeIds
+    this.minLQI = minLQI
+    this.edges = nodeIds != null ? getEdgesFromPathFunc(this.nodeIds) : null
+    this.edgeIds = this.edges != null ? this.edges.map(e => e.id) : null
+  }
+}
+
+class ColorHelper {
+  static ColIndex = 0
+  static highlightForegroundColors = [
+    '#D2691E', // Chocolate Brown
+    '#800000', // Maroon
+    '#DC143C', // Crimson Red
+    '#800080', // Purple
+    '#000080', // Navy Blue
+    '#008080', // Teal
+    '#333333', // Dark Gray
+    '#808000', // Olive
+    '#228B22' // Forest Green
+  ]
+
+  static getColor () {
+    const highlightCol = this.highlightForegroundColors[this.ColIndex]
+    if (++this.ColIndex >= this.highlightForegroundColors.length) {
+      this.ColIndex = 0
+    }
+    return highlightCol
   }
 }
 
@@ -291,21 +330,19 @@ export default {
       let firstResult = this.tspNearestNeighborLQI(this.nodeIds, clickedNodeId, coordinatorNode.id)
 
       // if nearest neighbor fails, try random neighbor
-      while (firstResult.path === null) {
+      while (firstResult.nodeIds === null) {
         firstResult = this.tspRandomNeighborLQI(this.nodeIds, clickedNodeId, coordinatorNode.id)
       }
 
       // Log the Nearest Neighbor results
-      console.log('First Path: ', firstResult.path)
+      console.log('First Path: ', firstResult.nodeIds)
       console.log('First Minimum LQI: ', firstResult.minLQI)
 
       // Running DFS with the LQI constraint
       const bestResult = this.dfsLQI(clickedNodeId, coordinatorNode.id, firstResult)
-      bestResult.edges = this.getEdgesFromPath(bestResult.path)
-      bestResult.edgeIds = bestResult.edges.map(e => e.id)
 
       // Log all valid paths
-      console.log('Best Path: ', bestResult.path)
+      console.log('Best Path: ', bestResult.nodeIds)
       console.log('Best Minimum LQI: ', bestResult.minLQI)
 
       // unhide in case they are filtered out ("Router Edges" checkbox e.g.)
@@ -317,16 +354,18 @@ export default {
           refreshNeeded = true
         }
       })
-      if (refreshNeeded) {
-        this.$refs.network.setData(this.visibleNodes, this.visibleEdges)
-      }
 
-      this.$refs.network.setSelection({
-        nodes: bestResult.path,
-        edges: bestResult.edgeIds
-      }, {
-        highlightEdges: false
-      })
+      // this.$refs.network.setSelection({
+      //   nodes: bestResult.nodeIds,
+      //   edges: bestResult.edgeIds
+      // }, {
+      //   highlightEdges: false
+      // })
+      this.highlightPath(bestResult)
+
+      if (refreshNeeded) {
+        this.refreshNetwork()
+      }
     },
     arraysAreIdentical (arr1, arr2) {
       if (arr1.length !== arr2.length) {
@@ -334,6 +373,30 @@ export default {
       }
 
       return arr1.every((value, index) => value === arr2[index])
+    },
+
+    highlightPath (path) {
+      const highlightCol = ColorHelper.getColor()
+
+      path.nodeIds.forEach(nid => {
+        const n = this.nodesDict[nid]
+        n.color.border = highlightCol
+        n.font.strokeColor = highlightCol
+      })
+
+      path.edges.forEach(e => {
+        // e.color = highlightCol
+        // e.font.strokeColor = highlightCol
+        // e.width = 3
+        // example: https://visjs.github.io/vis-network/examples/network/edgeStyles/background.html
+        e.background.color = highlightCol
+        e.background.enabled = true
+      })
+    },
+    refreshNetwork () {
+      // no better API found
+      // https://visjs.github.io/vis-network/docs/network/#options
+      this.$refs.network.setData(this.visibleNodes, this.visibleEdges)
     },
 
     /**
@@ -360,15 +423,15 @@ export default {
         this.edgesPerNode[currentNodeId].forEach(edge => {
           const neighborId = edge.from === currentNodeId ? edge.to : edge.from
 
-          if (unvisitedNodeIds.has(neighborId) && edge.combinedLqi > bestLQI) {
-            bestLQI = edge.combinedLqi
+          if (unvisitedNodeIds.has(neighborId) && edge.lqi > bestLQI) {
+            bestLQI = edge.lqi
             bestNeighborId = neighborId
           }
         })
 
         if (bestNeighborId === null) {
           // console.log('No valid neighbor')
-          return { path: null, minLQI: -Infinity }
+          return new Path(null, -Infinity)
         }
 
         minLQI = Math.min(minLQI, bestLQI)
@@ -376,7 +439,7 @@ export default {
       }
       visitedNodeIds.push(currentNodeId) // Add the end node to the path
 
-      return { path: visitedNodeIds, minLQI }
+      return new Path(visitedNodeIds, minLQI, this.getEdgesFromPath)
     },
 
     /**
@@ -386,7 +449,7 @@ export default {
      * @param {string[]} nodeIds - The IDs of all nodes in the graph.
      * @param {string} startNodeId - The ID of the starting node.
      * @param {string} endNodeId - The ID of the ending node.
-     * @returns {{ path: string[] | null, minLQI: number }} - The path of visited node IDs and the minimum LQI value.
+     * @returns Path object - The path of visited node IDs and the minimum LQI value.
      */
     tspRandomNeighborLQI (nodeIds, startNodeId, endNodeId) {
       const visitedNodeIds = []
@@ -403,7 +466,7 @@ export default {
 
         if (unvisitedNeighbors.length === 0) {
           // console.log('No valid neighbor')
-          return { path: null, minLQI: -Infinity }
+          return new Path(null, -Infinity)
         }
 
         // Randomly select a neighbor
@@ -411,13 +474,13 @@ export default {
         const randomNeighbor = unvisitedNeighbors[randomIndex]
         const neighborId = randomNeighbor.from === currentNodeId ? randomNeighbor.to : randomNeighbor.from
 
-        minLQI = Math.min(minLQI, randomNeighbor.combinedLqi)
+        minLQI = Math.min(minLQI, randomNeighbor.lqi)
         currentNodeId = neighborId
       }
 
       visitedNodeIds.push(currentNodeId) // Add the end node to the path
 
-      return { path: visitedNodeIds, minLQI }
+      return new Path(visitedNodeIds, minLQI, this.getEdgesFromPath)
     },
 
     /**
@@ -429,7 +492,7 @@ export default {
      * @returns The best result, containing the path and the minimum LQI.
      */
     dfsLQI (startNodeId, endNodeId, bestResult) {
-      const stack = [{ path: [startNodeId], minLQI: Infinity }] // Stack to hold paths
+      const stack = [new Path([startNodeId], Infinity, this.getEdgesFromPath)] // Stack to hold paths
 
       while (stack.length > 0) {
         const currentItem = stack.pop()
@@ -439,21 +502,21 @@ export default {
           continue
         }
 
-        const currentPath = currentItem.path
+        const currentPath = currentItem.nodeIds
         const currentNodeId = currentPath[currentPath.length - 1]
         const edges = this.edgesPerNode[currentNodeId]
 
         for (let i = 0; i < edges.length; i++) {
           const edge = edges[i]
 
-          if (edge.combinedLqi <= bestResult.minLQI) {
-            // console.log('Skipped path: ', edge.combinedLqi, currentPath, ' + ', edge)
+          if (edge.lqi <= bestResult.minLQI) {
+            // console.log('Skipped path: ', edge.lqi, currentPath, ' + ', edge)
             continue
           }
 
           const neighborId = edge.from === currentNodeId ? edge.to : edge.from
           if (neighborId === endNodeId) { // target found
-            bestResult = { path: [...currentPath, endNodeId], minLQI: Math.min(edge.combinedLqi, currentItem.minLQI) }
+            bestResult = new Path([...currentPath, endNodeId], Math.min(edge.lqi, currentItem.minLQI), this.getEdgesFromPath)
             // console.log('New candidate: ', JSON.stringify(bestResult))
 
             if (bestResult.minLQI === currentItem.minLQI) {
@@ -462,7 +525,7 @@ export default {
               break
             }
           } else if (!currentPath.includes(neighborId)) {
-            const newItem = { path: [...currentPath, neighborId], minLQI: Math.min(edge.combinedLqi, currentItem.minLQI) }
+            const newItem = new Path([...currentPath, neighborId], Math.min(edge.lqi, currentItem.minLQI), this.getEdgesFromPath)
             // console.count('Pushed path' + JSON.stringify(newItem))
             stack.push(newItem)
           }
@@ -591,16 +654,16 @@ export default {
 
       // consider only edges whose source and target node exist
       hassioEdges = hassioEdges.filter(e => this.nodeIds.includes(e.sourceIeeeAddr) && this.nodeIds.includes(e.targetIeeeAddr))
-      hassioEdges.forEach(edge => {
-        edge.hidden = false
+      hassioEdges.forEach(hedge => {
+        hedge.hidden = false
 
         // combine edges in both directions source <=> target
-        edge.reverseEdge = null
-        const reverseEdge = hassioEdges.find(e => e.sourceIeeeAddr === edge.targetIeeeAddr && e.targetIeeeAddr === edge.sourceIeeeAddr)
+        hedge.reverseEdge = null
+        const reverseEdge = hassioEdges.find(e => e.sourceIeeeAddr === hedge.targetIeeeAddr && e.targetIeeeAddr === hedge.sourceIeeeAddr)
         if (reverseEdge) {
           reverseEdge.hidden = true
-          edge.reverseEdge = reverseEdge
-          edge.combinedLqi = Math.round((edge.lqi + reverseEdge.lqi) / 2)
+          hedge.reverseEdge = reverseEdge
+          hedge.combinedLqi = Math.round((hedge.lqi + reverseEdge.lqi) / 2)
 
           // Remove the reverse edge from the edges array
           const index = hassioEdges.findIndex(e => e === reverseEdge)
@@ -608,7 +671,7 @@ export default {
             hassioEdges.splice(index, 1)
           }
         } else {
-          edge.combinedLqi = edge.lqi
+          hedge.combinedLqi = hedge.lqi
         }
 
         //
@@ -616,38 +679,38 @@ export default {
         //
         const MAX_WEAK_LQI = 50
         const MIN_STRONG_LQI = 100
-        edge.isWeak = edge.combinedLqi <= MAX_WEAK_LQI
-        edge.isStrong = edge.combinedLqi > MIN_STRONG_LQI
+        hedge.isWeak = hedge.combinedLqi <= MAX_WEAK_LQI
+        hedge.isStrong = hedge.combinedLqi > MIN_STRONG_LQI
 
         if (!this.showEnddeviceEdges) {
           // Filter out all edges having a node with type 'EndDevice' as the target
-          if ((nodesDict[edge.targetIeeeAddr] && nodesDict[edge.targetIeeeAddr].type === 'EndDevice') ||
-              (nodesDict[edge.sourceIeeeAddr] && nodesDict[edge.sourceIeeeAddr].type === 'EndDevice')) {
-            edge.hidden = true
+          if ((nodesDict[hedge.targetIeeeAddr] && nodesDict[hedge.targetIeeeAddr].type === 'EndDevice') ||
+              (nodesDict[hedge.sourceIeeeAddr] && nodesDict[hedge.sourceIeeeAddr].type === 'EndDevice')) {
+            hedge.hidden = true
           }
         }
-        if (!edge.hidden && !this.showRouterEdges) {
+        if (!hedge.hidden && !this.showRouterEdges) {
           // Filter out all edges having a node with type 'Router' as the target and source
-          if ((nodesDict[edge.sourceIeeeAddr] && nodesDict[edge.targetIeeeAddr]) &&
-              (nodesDict[edge.sourceIeeeAddr].type === 'Router' || nodesDict[edge.sourceIeeeAddr].type === 'Coordinator') &&
-              (nodesDict[edge.targetIeeeAddr].type === 'Router' || nodesDict[edge.targetIeeeAddr].type === 'Coordinator')) {
-            edge.hidden = true
+          if ((nodesDict[hedge.sourceIeeeAddr] && nodesDict[hedge.targetIeeeAddr]) &&
+              (nodesDict[hedge.sourceIeeeAddr].type === 'Router' || nodesDict[hedge.sourceIeeeAddr].type === 'Coordinator') &&
+              (nodesDict[hedge.targetIeeeAddr].type === 'Router' || nodesDict[hedge.targetIeeeAddr].type === 'Coordinator')) {
+            hedge.hidden = true
           }
         }
-        if (!edge.hidden && this.selectedWeakEdgeOption !== 'na') {
+        if (!hedge.hidden && this.selectedWeakEdgeOption !== 'na') {
           // Filter out all edges whose lqi <= MAX_WEAK_LQI
-          if (!edge.isWeak && this.selectedWeakEdgeOption === 'showOnly') {
-            edge.hidden = true
-          } else if (edge.isWeak && this.selectedWeakEdgeOption === 'filterOut') {
-            edge.hidden = true
+          if (!hedge.isWeak && this.selectedWeakEdgeOption === 'showOnly') {
+            hedge.hidden = true
+          } else if (hedge.isWeak && this.selectedWeakEdgeOption === 'filterOut') {
+            hedge.hidden = true
           }
         }
-        if (!edge.hidden && this.selectedStrongEdgeOption !== 'na') {
+        if (!hedge.hidden && this.selectedStrongEdgeOption !== 'na') {
           // Filter out all edges whose lqi < MIN_STRONG_LQI
-          if (!edge.isStrong && this.selectedStrongEdgeOption === 'showOnly') {
-            edge.hidden = true
-          } else if (edge.isStrong && this.selectedStrongEdgeOption === 'filterOut') {
-            edge.hidden = true
+          if (!hedge.isStrong && this.selectedStrongEdgeOption === 'showOnly') {
+            hedge.hidden = true
+          } else if (hedge.isStrong && this.selectedStrongEdgeOption === 'filterOut') {
+            hedge.hidden = true
           }
         }
       })
