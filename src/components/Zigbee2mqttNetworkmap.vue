@@ -62,6 +62,10 @@
           <label for="checkbox">LQI</label>
         </div>
         <div>
+          <input type="checkbox" id="lqi" v-model="perfMode" @change="doUpdateLayout($event)">
+          <label for="checkbox">Performance</label>
+        </div>
+        <div>
           <input type="checkbox" id="EnddeviceEdgesId" v-model="showEnddeviceEdges" @change="doUpdateLayout($event)">
           <label for="checkbox">End-Device Edges</label>
         </div>
@@ -106,7 +110,7 @@ class Node {
     this.font = {
       size: 10
     }
-    // this.shadow = true
+    this.shadow = true
     this.physics = true
     this.borderWidth = hassioNode.type !== 'EndDevice' ? 2 : 1
     this.color = {
@@ -148,6 +152,7 @@ class Edge {
     }
     this.smooth = {
       enabled: true,
+      // type: 'continuous'
       type: 'dynamic'
     }
     this.font = {
@@ -217,6 +222,7 @@ export default {
       // ----------------
       state: '',
       // UI Options
+      perfMode: false,
       showLqi: false,
       showEnddeviceEdges: true,
       showRouterEdges: true,
@@ -229,14 +235,17 @@ export default {
         autoResize: true,
         height: this.calcWindowHeight().toString(),
         interaction: {
-          selectConnectedEdges: false
+          selectConnectedEdges: false,
+          // https://visjs.github.io/vis-network/examples/network/edgeStyles/smoothWorldCup.html
+          hideEdgesOnDrag: false
         }
-        /*
-        configure: {
-          enabled: true,
-          showButton: true
-        }
-        */
+        // configure: {
+        //   filter: function (option, path) {
+        //     if (option === 'hideEdgesOnDrag') {
+        //       return true
+        //     }
+        //   }
+        // }
       }
     }
   },
@@ -397,6 +406,7 @@ export default {
       // no better API found
       // https://visjs.github.io/vis-network/docs/network/#options
       this.$refs.network.setData(this.visibleNodes, this.visibleEdges)
+      this.$refs.network.setOptions(this.options)
     },
 
     /**
@@ -600,12 +610,14 @@ export default {
     saveLayout () {
       console.log('saveLayout')
       const layout = this.$refs.network.getPositions()
+      layout.perfMode = this.perfMode
       layout.showLqi = this.showLqi
       layout.showEnddeviceEdges = this.showEnddeviceEdges
       layout.showRouterEdges = this.showRouterEdges
       layout.selectedWeakEdgeOption = this.selectedWeakEdgeOption
       layout.selectedStrongEdgeOption = this.selectedStrongEdgeOption
       if (this.hass.states[this.config.layout_entity] && this.hass.states[this.config.layout_entity].attributes) {
+        this.hass.states[this.config.layout_entity].attributes.perfMode = this.perfMode
         this.hass.states[this.config.layout_entity].attributes.showLqi = this.showLqi
         this.hass.states[this.config.layout_entity].attributes.showEnddeviceEdges = this.showEnddeviceEdges
         this.hass.states[this.config.layout_entity].attributes.showRouterEdges = this.showRouterEdges
@@ -810,6 +822,8 @@ export default {
         return
       }
       const layout = this.hass.states[this.config.layout_entity] ? this.hass.states[this.config.layout_entity].attributes : null
+      this.perfMode = layout ? layout.perfMode || false : false
+      this.options.interaction.hideEdgesOnDrag = this.perfMode
       this.showLqi = layout ? layout.showLqi || false : false
       this.showEnddeviceEdges = layout ? layout.showEnddeviceEdges || false : false
       this.showRouterEdges = layout ? layout.showRouterEdges || false : false
