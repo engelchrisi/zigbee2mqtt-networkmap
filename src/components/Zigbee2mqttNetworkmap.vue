@@ -106,7 +106,7 @@ class Node {
     this.font = {
       size: 10
     }
-    this.shadow = true
+    // this.shadow = true
     this.physics = true
     this.borderWidth = hassioNode.type !== 'EndDevice' ? 2 : 1
     this.color = {
@@ -151,11 +151,11 @@ class Edge {
       type: 'dynamic'
     }
     this.font = {
-      color: 'white',
+      color: (lqi < 90) ? 'white' : 'black',
       strokeWidth: 0,
       strokeColor: 'black', // edgeColor,
       size: 14,
-      background: hassioEdge.isWeak ? 'red' : edgeColor
+      background: edgeColor // hassioEdge.isWeak ? 'red' :
     }
     this.label = showLqi ? lqi.toString() : ''
   }
@@ -535,6 +535,7 @@ export default {
       return bestResult
     },
     dragRelease () {
+      console.log('dragRelease')
       // save state
       this.saveLayout()
     },
@@ -590,12 +591,14 @@ export default {
       return result
     },
     stabilized () {
+      console.log('stabilized')
       // switch of physics after initial stabilization
       this.visibleNodes.forEach(node => {
         node.physics = false
       })
     },
     saveLayout () {
+      console.log('saveLayout')
       const layout = this.$refs.network.getPositions()
       layout.showLqi = this.showLqi
       layout.showEnddeviceEdges = this.showEnddeviceEdges
@@ -620,9 +623,11 @@ export default {
       return !links || !links.some(l => l.sourceIeeeAddr === node.ieeeAddr)
     },
     doUpdateLayout (e) {
-      // console.log('doUpdateLayout' + e)
+      console.log('doUpdateLayout' + e)
       this.saveLayout()
       this.update()
+      // necessary for showLQI changes
+      this.refreshNetwork()
     },
     refresh () {
       this.state = 'Refreshing...'
@@ -797,6 +802,7 @@ export default {
     // update
     // =====================================================
     update () {
+      console.log('update')
       const attr = this.hass.states[this.config.entity].attributes // TODO rename
       if (!attr.nodes && !this.initialized) {
         this.initialized = true
