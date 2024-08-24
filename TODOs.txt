@@ -1,0 +1,2 @@
+- only show current selected nodes' network and blur all the rest
+S. Zigbee2MQTT network
