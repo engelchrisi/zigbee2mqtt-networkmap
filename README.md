@@ -30,14 +30,18 @@ In `configuration.yaml` of the Home Assistant installation:
 ``` yaml
 mqtt:
   sensor:
-    - name: Zigbee2mqtt Networkmap
-      # if you change base_topic of Zigbee2mqtt, change state_topic accordingly
+    - name: zigbee2mqtt_networkmap
       state_topic: zigbee2mqtt/bridge/response/networkmap
       value_template: >-
         {{ now().strftime('%Y-%m-%d %H:%M:%S') }}
-      # again, if you change base_topic of Zigbee2mqtt, change json_attributes_topic accordingly
       json_attributes_topic: zigbee2mqtt/bridge/response/networkmap
       json_attributes_template: "{{ value_json.data.value | tojson }}"
+    - name: zigbee2mqtt_networkmap_layout
+      state_topic: zigbee2mqtt/bridge/networkmap/layout
+      value_template: >-
+        {{ now().strftime('%Y-%m-%d %H:%M:%S') }}
+      json_attributes_topic: zigbee2mqtt/bridge/networkmap/layout
+      json_attributes_template: "{{ value_json | tojson }}"
 ```
 
 ### Frontend setup (HACS)
@@ -60,11 +64,52 @@ entity: sensor.zigbee2mqtt_networkmap
 ```
 Make sure to use the same name of the sensor defined under `configuration.yaml`, baseed on the `Zigbee2mqtt Networkmap` name.
 
+Or if you use yaml files for dashboards:
+``` yaml
+theme: Backend-selected
+title: Zigbee Network
+type: panel
+cards:
+  - type: custom:zigbee2mqtt-networkmap
+    entity: sensor.zigbee2mqtt_networkmap
+    layout_entity: sensor.zigbee2mqtt_networkmap_layout
+    # the following are optional:
+    mqtt_base_topic: zigbee2mqtt # if you change base_topic of Zigbee2mqtt, change it accordingly
+    mqtt_topic: zigbee2mqtt/bridge/request/networkmap # or you can specify the full mqtt topic, see https://www.zigbee2mqtt.io/guide/usage/mqtt_topics_and_messages.html#zigbee2mqtt-bridge-request
+    mqtt_payload: { type: 'raw', routes: true }
+    force: 3000 # decrease it to get smaller map if you have many devices
+    node_size: 16
+    font_size: 12
+    link_width: 2
+    height: 1000 # height of the card
+    # use this css config or use whatever css tech to change look and feel,
+    # the same variable can also be used in Home Assistant themes, see https://www.home-assistant.io/components/frontend/#defining-themes
+    css: |
+      :host {
+        --zigbee2mqtt-networkmap-node-color: rgba(18, 120, 98, .7);
+        --zigbee2mqtt-networkmap-node-fill-color: #dcfaf3;
+        --zigbee2mqtt-networkmap-node-pinned-color: rgba(190, 56, 93, .6);
+        --zigbee2mqtt-networkmap-link-color: rgba(18, 120, 98, .5);
+        --zigbee2mqtt-networkmap-hover-color: #be385d;
+        --zigbee2mqtt-networkmap-link-selected-color: rgba(202, 164, 85, .6);
+        --zigbee2mqtt-networkmap-label-color: #127862;
+        --zigbee2mqtt-networkmap-arrow-color: rgba(18, 120, 98, 0.7);
+        --zigbee2mqtt-networkmap-node-coordinator-color: rgba(224, 78, 93, .7);
+        --zigbee2mqtt-networkmap-node-router-color: rgba(0, 165, 255, .7);
+```
+
 ### Frontend setup (YAML mode)
 
 Download [`zigbee2mqtt-networkmap.js`](https://github.com/azuwis/zigbee2mqtt-networkmap/releases/download/v0.9.0/zigbee2mqtt-networkmap.js) and put it into `<config-directory>/www/` directory.
 
-Enable [Dashboard YAML mode](https://www.home-assistant.io/dashboards/dashboards/#using-yaml-for-the-default-dashboard).
+Configure in Settings / Dashboards / 3-dot-menu: Resources:
+(o) JavaScript Module
+with URL:
+/local/ce-zigbee-networkmap/zigbee2mqtt-networkmap.js?v=0.9.4
+
+You can increase the version number to force reloading of new versions. Number does not matter it must be different from previous ones.
+
+or enable [Dashboard YAML mode](https://www.home-assistant.io/dashboards/dashboards/#using-yaml-for-the-default-dashboard).
 
 In `configuration.yaml`:
 

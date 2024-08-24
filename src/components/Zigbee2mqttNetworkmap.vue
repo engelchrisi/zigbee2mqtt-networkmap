@@ -601,7 +601,7 @@ export default {
       return result
     },
     stabilized () {
-      console.log('stabilized')
+      // console.log('stabilized')
       // switch of physics after initial stabilization
       this.visibleNodes.forEach(node => {
         node.physics = false
