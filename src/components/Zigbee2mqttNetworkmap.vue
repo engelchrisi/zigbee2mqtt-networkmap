@@ -108,7 +108,7 @@ class Node {
 
 class Edge {
   constructor (hassioEdge, nodesDict, edgeColorFunc, generateEdgeKeyFunc, showLqi) {
-    const lqi = hassioEdge.combinedLqi
+    const lqi = Number.isFinite(hassioEdge.combinedLqi) ? hassioEdge.combinedLqi : 0
     const edgeColor = edgeColorFunc(lqi)
     const edgeId = generateEdgeKeyFunc(hassioEdge.sourceIeeeAddr, hassioEdge.targetIeeeAddr)
 
@@ -275,7 +275,11 @@ export default {
     options: {
       deep: true,
       handler (newOptions) {
-        if (this.network) this.network.setOptions(newOptions)
+        if (!this.network) return
+        // height is managed exclusively by onResize; passing it here would feed back
+        // into setSize → resize event → onResize, causing an infinite loop
+        const { height: _height, ...otherOptions } = newOptions
+        this.network.setOptions(otherOptions)
       }
     },
     backgroundImage: {
@@ -644,18 +648,12 @@ export default {
       return window.innerHeight - 120
     },
     onResize () {
-      if (this._resizing) return
       const newHeight = this.calcWindowHeight().toString()
       if (newHeight === this.options.height) return
       this.options.height = newHeight
       if (this.network) {
-        this._resizing = true
-        try {
-          this.network.setOptions({ height: this.options.height })
-          this.network.fit()
-        } finally {
-          this._resizing = false
-        }
+        this.network.setOptions({ height: newHeight })
+        this.network.fit()
       }
     },
 
@@ -1020,7 +1018,11 @@ export default {
     this.network.on('stabilizationProgress', () => this.networkEvent('stabilizationProgress'))
     this.network.on('stabilizationIterationsDone', () => this.networkEvent('stabilizationIterationsDone'))
     this.network.on('stabilized', () => this.stabilized())
-    this.network.on('resize', () => this.onResize())
+    // Use window resize instead of network's own resize event.
+    // network.on('resize') fires whenever setOptions({height}) is called,
+    // which would re-trigger onResize and cause an infinite loop.
+    this._windowResizeHandler = () => this.onResize()
+    window.addEventListener('resize', this._windowResizeHandler)
     this.network.on('initRedraw', () => this.networkEvent('initRedraw'))
     this.network.on('beforeDrawing', (ctx) => this.onBeforeDrawing(ctx))
     this.network.on('afterDrawing', () => this.networkEvent('afterDrawing'))
@@ -1028,6 +1030,10 @@ export default {
     this.network.on('configChange', () => this.networkEvent('configChange'))
   },
   beforeUnmount () {
+    if (this._windowResizeHandler) {
+      window.removeEventListener('resize', this._windowResizeHandler)
+      this._windowResizeHandler = null
+    }
     if (this.network) {
       this.network.destroy()
       this.network = null
