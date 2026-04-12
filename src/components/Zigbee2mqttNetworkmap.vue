@@ -92,6 +92,7 @@
           </select>
         </div>
         <div>{{ state }}</div>
+        <div>Edges: {{ visibleEdges.length }} / {{ allEdges.length }}</div>
         <div>Zoom: {{ zoomScale }}</div>
       </div>
     </div>
@@ -317,10 +318,13 @@ export default {
       const h = w * (img.naturalHeight / img.naturalWidth)
       const x = this.config.background_network_x !== undefined ? this.config.background_network_x : -w / 2
       const y = this.config.background_network_y !== undefined ? this.config.background_network_y : -h / 2
-      ctx.save()
+      // Do NOT use ctx.save()/ctx.restore() here — vis.js has already pushed its
+      // pan/zoom transform onto the save stack and restore() would pop it, causing
+      // edges and nodes to be drawn in the wrong coordinate space.
+      const prevAlpha = ctx.globalAlpha
       ctx.globalAlpha = this.backgroundOpacity
       ctx.drawImage(img, x, y, w, h)
-      ctx.restore()
+      ctx.globalAlpha = prevAlpha
     },
     networkEvent (eventName) {
       // console.log(eventName)
@@ -873,8 +877,8 @@ export default {
       this.perfMode = layout ? layout.perfMode || false : false
       this.options.interaction.hideEdgesOnDrag = this.perfMode
       this.showLqi = layout ? layout.showLqi || false : false
-      this.showEnddeviceEdges = layout ? layout.showEnddeviceEdges || false : false
-      this.showRouterEdges = layout ? layout.showRouterEdges || false : false
+      this.showEnddeviceEdges = layout?.showEnddeviceEdges ?? true
+      this.showRouterEdges = layout?.showRouterEdges ?? true
       this.selectedWeakEdgeOption = layout ? layout.selectedWeakEdgeOption || 'na' : 'na'
       this.selectedStrongEdgeOption = layout ? layout.selectedStrongEdgeOption || 'na' : 'na'
 
