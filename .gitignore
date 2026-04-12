@@ -21,3 +21,4 @@ yarn-error.log*
 *.sw?
 
 /_HANSI
+build_and_deploy.ps1

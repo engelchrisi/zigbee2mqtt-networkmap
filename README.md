@@ -7,6 +7,9 @@
   - filter them out (hide them)
   - show them only (and hide others)
 - The "Strong edges" dropdown has the same effect as the "Weak edges" dropdown
+- Show a background image (e.g. floor plan) behind the network graph that pans and zooms with it — configure with `background_image`, `background_opacity`, `background_network_width`, `background_network_x`, `background_network_y`
+- Live zoom factor displayed in the toolbar
+- Configure an initial zoom level applied after the graph stabilises with `initial_zoom`
 
 # zigbee2mqtt-networkmap
 
@@ -82,6 +85,12 @@ cards:
     font_size: 12
     link_width: 2
     height: 1000 # height of the card
+    background_image: /local/floorplan.png # optional: URL of an image shown behind the network graph (pans & zooms with the graph)
+    background_opacity: 0.3              # optional: opacity of the background image (0.0–1.0, default 0.3)
+    background_network_width: 1000       # optional: width of the background image in network coordinate units (height auto from aspect ratio, default 1000)
+    # background_network_x: -500        # optional: left edge of the image in network coords (default: -background_network_width/2)
+    # background_network_y: -500        # optional: top edge of the image in network coords (default: -height/2)
+    initial_zoom: 0.5                    # optional: zoom scale applied once after the graph stabilises (read live value from the "Zoom:" display in the toolbar)
     # use this css config or use whatever css tech to change look and feel,
     # the same variable can also be used in Home Assistant themes, see https://www.home-assistant.io/components/frontend/#defining-themes
     css: |
@@ -96,6 +105,7 @@ cards:
         --zigbee2mqtt-networkmap-arrow-color: rgba(18, 120, 98, 0.7);
         --zigbee2mqtt-networkmap-node-coordinator-color: rgba(224, 78, 93, .7);
         --zigbee2mqtt-networkmap-node-router-color: rgba(0, 165, 255, .7);
+      }
 ```
 
 ### Frontend setup (YAML mode)
@@ -142,6 +152,12 @@ views:
         font_size: 12
         link_width: 2
         height: 400 # height of the card
+        background_image: /local/floorplan.png # optional: URL of an image shown behind the network graph (pans & zooms with the graph)
+        background_opacity: 0.3              # optional: opacity of the background image (0.0–1.0, default 0.3)
+        background_network_width: 1000       # optional: width of the background image in network coordinate units (default 1000)
+        # background_network_x: -500        # optional: left edge in network coords (default: -background_network_width/2)
+        # background_network_y: -500        # optional: top edge in network coords (default: -height/2)
+        initial_zoom: 0.5                    # optional: zoom scale applied once after the graph stabilises
         # use this css config or use whatever css tech to change look and feel,
         # the same variable can also be used in Home Assistant themes, see https://www.home-assistant.io/components/frontend/#defining-themes
         css: |
@@ -192,6 +208,13 @@ https://github.com/Koenkk/zigbee2mqtt/issues/2436 for discussion.
 
 ## Changelog
 
+#### [0.10.0] - 2026-04-12
+
+* Add background image support (`background_image`, `background_opacity`) — image pans and zooms with the graph
+* Add background image positioning and sizing in network coordinate space (`background_network_width`, `background_network_x`, `background_network_y`)
+* Show live zoom factor in the toolbar
+* Add `initial_zoom` config option to set the zoom level applied after graph stabilisation
+
 #### [0.9.0] - 2024-02-29
 
 * Fix link label text position and node text background #53
@@ -235,7 +258,7 @@ https://github.com/Koenkk/zigbee2mqtt/issues/2436 for discussion.
 
 ## Development
 
-Install [nodejs](https://nodejs.org/) and [yarn](https://yarnpkg.com/), clone the
+Install [nodejs](https://nodejs.org/) (version 16 or later — use [nvm](https://github.com/nvm-sh/nvm) if needed) and [yarn](https://yarnpkg.com/), clone the
 repo and install dependances:
 
 ``` bash
@@ -243,6 +266,16 @@ git clone https://github.com/azuwis/zigbee2mqtt-networkmap.git
 cd zigbee2mqtt-networkmap
 yarn install
 ```
+
+### Build and deploy (Windows / PowerShell)
+
+A convenience script is provided to build on the dev machine and deploy directly to Home Assistant:
+
+``` powershell
+& "\\192.168.20.143\zigbee2mqtt-networkmap\build_and_deploy.ps1"
+```
+
+Edit the `$SshHost` and `$DstDir` variables at the top of `build_and_deploy.ps1` to match your environment.
 
 ### Compiles and hot-reloads for development
 

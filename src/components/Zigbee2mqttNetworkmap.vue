@@ -32,7 +32,7 @@
       v-on:blur-node="networkEvent('blurNode')"
       v-on:hover-edge="networkEvent('hoverEdge')"
       v-on:blur-edge="networkEvent('blurEdge')"
-      v-on:zoom="networkEvent('zoom')"
+      v-on:zoom="onZoom"
       v-on:show-popup="networkEvent('showPopup')"
       v-on:hide-popup="networkEvent('hidePopup')"
       v-on:start-stabilizing="networkEvent('startStabilizing')"
@@ -41,7 +41,7 @@
       v-on:stabilized="stabilized"
       v-on:resize="onResize"
       v-on:init-redraw="networkEvent('initRedraw')"
-      v-on:before-drawing="networkEvent('beforeDrawing')"
+      v-on:before-drawing="onBeforeDrawing"
       v-on:after-drawing="networkEvent('afterDrawing')"
       v-on:animation-finished="networkEvent('animationFinished')"
       v-on:config-change="networkEvent('configChange')"
@@ -92,6 +92,7 @@
           </select>
         </div>
         <div>{{ state }}</div>
+        <div>Zoom: {{ zoomScale }}</div>
       </div>
     </div>
   </ha-card>
@@ -208,6 +209,9 @@ export default {
       initialized: false,
       config: {},
       hass: null,
+      bgImage: null,
+      zoomScale: '1.00',
+      initialZoomApplied: false,
       // network data model - s. v-bind
       visibleNodes: /** @type {Node[]} */ [], // An array intended to hold instances of the Node class
       visibleEdges: /** @type {Edge[]} */ [], // An array intended to hold instances of the Edge class
@@ -252,9 +256,34 @@ export default {
   computed: {
     css () {
       return this.config.css || ''
+    },
+    backgroundImage () {
+      return this.config.background_image || null
+    },
+    backgroundOpacity () {
+      return this.config.background_opacity !== undefined ? this.config.background_opacity : 0.3
     }
   },
   watch: {
+    backgroundImage: {
+      immediate: true,
+      handler (url) {
+        if (!url) {
+          this.bgImage = null
+          return
+        }
+        const img = new Image()
+        img.onload = () => {
+          this.bgImage = img
+          this.$nextTick(() => {
+            if (this.$refs.network && this.$refs.network.redraw) {
+              this.$refs.network.redraw()
+            }
+          })
+        }
+        img.src = url
+      }
+    },
     hass (newHass, oldHass) {
       const entity = this.config.entity
       if (newHass && entity) {
@@ -278,6 +307,21 @@ export default {
     }
   },
   methods: {
+    onZoom (event) {
+      this.zoomScale = event.scale.toFixed(2)
+    },
+    onBeforeDrawing (ctx) {
+      if (!this.bgImage || !this.bgImage.complete) return
+      const img = this.bgImage
+      const w = this.config.background_network_width || 1000
+      const h = w * (img.naturalHeight / img.naturalWidth)
+      const x = this.config.background_network_x !== undefined ? this.config.background_network_x : -w / 2
+      const y = this.config.background_network_y !== undefined ? this.config.background_network_y : -h / 2
+      ctx.save()
+      ctx.globalAlpha = this.backgroundOpacity
+      ctx.drawImage(img, x, y, w, h)
+      ctx.restore()
+    },
     networkEvent (eventName) {
       // console.log(eventName)
       if (eventName === 'select-node') {
@@ -601,11 +645,14 @@ export default {
       return result
     },
     stabilized () {
-      // console.log('stabilized')
       // switch of physics after initial stabilization
       this.visibleNodes.forEach(node => {
         node.physics = false
       })
+      if (!this.initialZoomApplied && this.config.initial_zoom !== undefined) {
+        this.initialZoomApplied = true
+        this.$refs.network.moveTo({ scale: this.config.initial_zoom })
+      }
     },
     saveLayout () {
       console.log('saveLayout')
@@ -815,6 +862,7 @@ export default {
     // =====================================================
     update () {
       console.log('update')
+      this.initialZoomApplied = false
       const attr = this.hass.states[this.config.entity].attributes // TODO rename
       if (!attr.nodes && !this.initialized) {
         this.initialized = true
