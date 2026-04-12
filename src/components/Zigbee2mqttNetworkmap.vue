@@ -644,10 +644,18 @@ export default {
       return window.innerHeight - 120
     },
     onResize () {
-      this.options.height = this.calcWindowHeight().toString()
+      if (this._resizing) return
+      const newHeight = this.calcWindowHeight().toString()
+      if (newHeight === this.options.height) return
+      this.options.height = newHeight
       if (this.network) {
-        this.network.setOptions({ height: this.options.height })
-        this.network.fit()
+        this._resizing = true
+        try {
+          this.network.setOptions({ height: this.options.height })
+          this.network.fit()
+        } finally {
+          this._resizing = false
+        }
       }
     },
 

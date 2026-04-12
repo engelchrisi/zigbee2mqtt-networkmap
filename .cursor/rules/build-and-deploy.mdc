@@ -1,0 +1,19 @@
+---
+description: How to build and deploy zigbee2mqtt-networkmap to Home Assistant
+alwaysApply: true
+---
+
+# Build & Deploy
+
+Run the PowerShell script at the repo root — it SSHes into the build host, runs `yarn build`, then copies the output directly to Home Assistant over the network share:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "\\192.168.20.143\zigbee2mqtt-networkmap\build_and_deploy.ps1"
+```
+
+## What it does
+
+1. **Build** — SSHes to `engelch@192.168.20.143`, runs `yarn build` in `~/dev/zigbee2mqtt-networkmap`
+2. **Deploy** — Copies `dist/zigbee2mqtt-networkmap.js` to `\\192.168.20.204\config\www\ce-zigbee-networkmap\`
+
+Aborts automatically if the build fails.
