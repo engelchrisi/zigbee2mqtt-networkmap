@@ -723,6 +723,8 @@ export default {
         this.hass.states[this.config.layout_entity].attributes.selectedWeakEdgeOption = this.selectedWeakEdgeOption
         this.hass.states[this.config.layout_entity].attributes.selectedStrongEdgeOption = this.selectedStrongEdgeOption
       }
+      // Mirror to localStorage so positions survive an MQTT broker restart
+      try { localStorage.setItem('zigbee2mqtt-networkmap-layout', JSON.stringify(layout)) } catch (e) {}
       const mqttBaseTopic = this.config.mqtt_base_topic || 'zigbee2mqtt'
       this.hass.callService('mqtt', 'publish', {
         topic: mqttBaseTopic + '/bridge/networkmap/layout',
@@ -921,7 +923,14 @@ export default {
         this.refresh()
         return
       }
-      const layout = this.hass.states[this.config.layout_entity] ? this.hass.states[this.config.layout_entity].attributes : null
+      let layout = this.hass.states[this.config.layout_entity] ? this.hass.states[this.config.layout_entity].attributes : null
+      // Fall back to localStorage when the MQTT retained message is missing (e.g. after broker restart)
+      if (!layout) {
+        try {
+          const stored = localStorage.getItem('zigbee2mqtt-networkmap-layout')
+          if (stored) layout = JSON.parse(stored)
+        } catch (e) {}
+      }
       this.perfMode = layout ? layout.perfMode || false : false
       this.options.interaction.hideEdgesOnDrag = this.perfMode
       this.showLqi = layout ? layout.showLqi || false : false
@@ -933,15 +942,28 @@ export default {
       // /////////////////////////////////
       // nodes update
 
+      // Build a lookup of nodes that are already pinned so we can preserve their
+      // live vis.js position rather than re-reading from the layout entity.  This
+      // avoids the race where doUpdateLayout() calls saveLayout() (async MQTT) and
+      // then update() immediately, reading a stale layout_entity and jumping nodes back.
+      const pinnedIds = new Set(this.visibleNodes.filter(n => !n.physics).map(n => n.id))
+      const currentPositions = (this.network && pinnedIds.size) ? this.network.getPositions() : {}
+
       // merge this.nodes with attr.node
       this.visibleNodes = this.merge(this.visibleNodes, d => d.id,
         attr.nodes, hassioNode => hassioNode.ieeeAddr,
         hassioNode => {
           const node = new Node(hassioNode, attr, this.imageUrl, this.isUnconnected)
-          // set layout, if saved previously
-          if (layout && layout[hassioNode.ieeeAddr] && layout[hassioNode.ieeeAddr].x) {
-            node.x = layout[hassioNode.ieeeAddr].x
-            node.y = layout[hassioNode.ieeeAddr].y
+          const ieeeAddr = hassioNode.ieeeAddr
+          // Prefer live vis.js position for already-pinned nodes (survives async MQTT race)
+          if (pinnedIds.has(ieeeAddr) && currentPositions[ieeeAddr]) {
+            node.x = currentPositions[ieeeAddr].x
+            node.y = currentPositions[ieeeAddr].y
+            node.physics = false
+          } else if (layout && layout[ieeeAddr] && layout[ieeeAddr].x !== undefined) {
+            // set layout, if saved previously
+            node.x = layout[ieeeAddr].x
+            node.y = layout[ieeeAddr].y
             node.physics = false
           }
           return node
