@@ -47,6 +47,18 @@
             <option value="filterOut">Filter out</option>
           </select>
         </div>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <input
+            type="text"
+            v-model="searchQuery"
+            placeholder="Search nodes…"
+            style="padding:2px 6px;border:1px solid #ccc;border-radius:3px;font-size:12px;width:130px;outline:none;"
+          >
+          <span v-if="searchQuery.trim()" style="font-size:12px;white-space:nowrap;">
+            {{ searchMatchIds ? searchMatchIds.size : 0 }}
+            match{{ searchMatchIds && searchMatchIds.size === 1 ? '' : 'es' }}
+          </span>
+        </div>
         <div>{{ state }}</div>
         <div>Edges: {{ visibleEdges.length }} / {{ allEdges.length }}</div>
         <div>Zoom: {{ zoomScale }}</div>
@@ -191,6 +203,8 @@ export default {
       edgesPerNode: /**  @type {Record<string, Edge[]>} */ {}, // f(node-key) = array of all connected edges
       // ----------------
       state: '',
+      // Search / highlight
+      searchQuery: '',
       // UI Options
       perfMode: false,
       showLqi: false,
@@ -223,6 +237,18 @@ export default {
     css () {
       return this.config.css || ''
     },
+    searchMatchIds () {
+      const q = this.searchQuery.trim().toLowerCase()
+      if (!q) return null
+      return new Set(
+        this.visibleNodes
+          .filter(n =>
+            (n.label && n.label.toLowerCase().includes(q)) ||
+            (n.type && n.type.toLowerCase().includes(q))
+          )
+          .map(n => n.id)
+      )
+    },
     backgroundImage () {
       return this.config.background_image || null
     },
@@ -231,10 +257,15 @@ export default {
     }
   },
   watch: {
+    searchQuery () {
+      this.applySearchHighlight()
+    },
     visibleNodes (newNodes) {
       if (!this.nodesDataSet) return
       this.nodesDataSet.clear()
       this.nodesDataSet.add(newNodes)
+      // Re-apply any active search highlight after nodes are replaced
+      this.applySearchHighlight()
     },
     visibleEdges (newEdges) {
       if (!this.edgesDataSet) return
@@ -287,6 +318,34 @@ export default {
     }
   },
   methods: {
+    applySearchHighlight () {
+      if (!this.nodesDataSet) return
+      const matchIds = this.searchMatchIds
+      if (!matchIds) {
+        // Restore every node to its original colour stored in visibleNodes
+        this.nodesDataSet.update(
+          this.visibleNodes.map(n => ({ id: n.id, color: n.color, font: n.font }))
+        )
+        return
+      }
+      this.nodesDataSet.update(
+        this.visibleNodes.map(n => {
+          if (matchIds.has(n.id)) {
+            return {
+              id: n.id,
+              color: { ...n.color, border: '#FF9800', background: '#FFF3E0' },
+              font: { ...n.font, color: '#000000' }
+            }
+          } else {
+            return {
+              id: n.id,
+              color: { border: '#CCCCCC', background: '#F0F0F0', highlight: n.color.highlight },
+              font: { ...n.font, color: '#BBBBBB' }
+            }
+          }
+        })
+      )
+    },
     onZoom (event) {
       this.zoomScale = event.scale.toFixed(2)
     },
