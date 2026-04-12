@@ -1,45 +1,44 @@
-import Vue from 'vue'
-import wrap from '@vue/web-component-wrapper'
+import { createApp } from 'vue'
 import Zigbee2mqttNetworkmapVue from './components/Zigbee2mqttNetworkmap'
 
-Vue.component('v-style', {
-  render: function (createElement) {
-    return createElement('style', this.$slots.default)
+class Zigbee2mqttNetworkmap extends HTMLElement {
+  constructor () {
+    super()
+    this._config = null
+    this._hass = null
+    this._app = null
+    this._vm = null
   }
-})
 
-const Zigbee2mqttNetworkmapWrap = wrap(Vue, Zigbee2mqttNetworkmapVue)
+  connectedCallback () {
+    const container = document.createElement('div')
+    this.appendChild(container)
+    this._app = createApp(Zigbee2mqttNetworkmapVue)
+    this._vm = this._app.mount(container)
+    if (this._config) this._vm.config = this._config
+    if (this._hass) this._vm.hass = this._hass
+  }
 
-class Zigbee2mqttNetworkmap extends Zigbee2mqttNetworkmapWrap {
+  disconnectedCallback () {
+    if (this._app) {
+      this._app.unmount()
+      this._app = null
+      this._vm = null
+    }
+  }
+
   get hass () {
     return this._hass
   }
 
   set hass (hass) {
     this._hass = hass
-    const vm = this.vueComponent
-    if (vm) {
-      vm.hass = this._hass
-    }
+    if (this._vm) this._vm.hass = hass
   }
 
   setConfig (config) {
     this._config = config
-    const vm = this.vueComponent
-    if (vm) {
-      vm.config = this._config
-    }
-  }
-
-  connectedCallback () {
-    super.connectedCallback()
-    const vm = this.vueComponent
-    if (this._config) {
-      vm.config = this._config
-    }
-    if (!vm.hass) {
-      vm.hass = this._hass
-    }
+    if (this._vm) this._vm.config = config
   }
 }
 

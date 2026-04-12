@@ -9,51 +9,7 @@
       }
       {{ css }}
     </v-style>
-    <network
-      class="network"
-      ref="network"
-      v-bind:nodes="visibleNodes"
-      v-bind:edges="visibleEdges"
-      v-bind:options="options"
-      v-on:click="networkEvent('click')"
-      v-on:double-click="networkEvent('doubleClick')"
-      v-on:oncontext="networkEvent('oncontext')"
-      v-on:hold="networkEvent('hold')"
-      v-on:release="dragRelease"
-      v-on:select="networkEvent('select')"
-      v-on:select-node="networkEvent('select-node')"
-      v-on:select-edge="networkEvent('selectEdge')"
-      v-on:deselect-node="networkEvent('deselect-node')"
-      v-on:deselect-edge="networkEvent('deselectEdge')"
-      v-on:drag-start="networkEvent('dragStart')"
-      v-on:dragging="dragging"
-      v-on:drag-end="networkEvent('dragEnd')"
-      v-on:hover-node="networkEvent('hoverNode')"
-      v-on:blur-node="networkEvent('blurNode')"
-      v-on:hover-edge="networkEvent('hoverEdge')"
-      v-on:blur-edge="networkEvent('blurEdge')"
-      v-on:zoom="onZoom"
-      v-on:show-popup="networkEvent('showPopup')"
-      v-on:hide-popup="networkEvent('hidePopup')"
-      v-on:start-stabilizing="networkEvent('startStabilizing')"
-      v-on:stabilization-progress="networkEvent('stabilizationProgress')"
-      v-on:stabilization-iterations-done="networkEvent('stabilizationIterationsDone')"
-      v-on:stabilized="stabilized"
-      v-on:resize="onResize"
-      v-on:init-redraw="networkEvent('initRedraw')"
-      v-on:before-drawing="onBeforeDrawing"
-      v-on:after-drawing="networkEvent('afterDrawing')"
-      v-on:animation-finished="networkEvent('animationFinished')"
-      v-on:config-change="networkEvent('configChange')"
-      v-on:nodes-mounted="networkEvent('nodes-mounted')"
-      v-on:nodes-add="networkEvent('nodes-add')"
-      v-on:nodes-update="networkEvent('nodes-update')"
-      v-on:nodes-remove="networkEvent('nodes-remove')"
-      v-on:edges-mounted="networkEvent('edges-mounted')"
-      v-on:edges-add="networkEvent('edges-add')"
-      v-on:edges-update="networkEvent('edges-update')"
-      v-on:edges-remove="networkEvent('edges-remove')"
-    ></network>
+    <div ref="networkContainer" class="network"></div>
     <div id="card-actions" class="card-actions">
       <div class="flex">
         <mwc-button @click="refresh">Refresh</mwc-button>
@@ -100,8 +56,17 @@
 </template>
 
 <script>
-import { Network } from 'vue-visjs'
+import { h } from 'vue'
+import { Network as VisNetwork } from 'vis-network'
+import { DataSet } from 'vis-data'
 import isEqual from 'lodash.isequal'
+
+// Renders a <style> tag — slots are functions in Vue 3
+const VStyle = {
+  render () {
+    return h('style', this.$slots.default ? this.$slots.default() : [])
+  }
+}
 
 class Node {
   constructor (hassioNode, attr, imageUrl, isUnconnected) {
@@ -202,7 +167,7 @@ class ColorHelper {
 
 export default {
   components: {
-    Network
+    'v-style': VStyle
   },
   data () {
     return {
@@ -266,6 +231,22 @@ export default {
     }
   },
   watch: {
+    visibleNodes (newNodes) {
+      if (!this.nodesDataSet) return
+      this.nodesDataSet.clear()
+      this.nodesDataSet.add(newNodes)
+    },
+    visibleEdges (newEdges) {
+      if (!this.edgesDataSet) return
+      this.edgesDataSet.clear()
+      this.edgesDataSet.add(newEdges)
+    },
+    options: {
+      deep: true,
+      handler (newOptions) {
+        if (this.network) this.network.setOptions(newOptions)
+      }
+    },
     backgroundImage: {
       immediate: true,
       handler (url) {
@@ -277,9 +258,7 @@ export default {
         img.onload = () => {
           this.bgImage = img
           this.$nextTick(() => {
-            if (this.$refs.network && this.$refs.network.redraw) {
-              this.$refs.network.redraw()
-            }
+            if (this.network) this.network.redraw()
           })
         }
         img.src = url
@@ -351,24 +330,21 @@ export default {
     },
     // normal selection of clicked node + all connected edges
     handleDeselectNode () {
-      console.log('handleDeselectNode => ' + JSON.stringify(this.$refs.network.getSelectedNodes()))
-      this.$refs.network.unselectAll()
+      if (!this.network) return
+      console.log('handleDeselectNode => ' + JSON.stringify(this.network.getSelectedNodes()))
+      this.network.unselectAll()
     },
     // normal selection of clicked node + all connected edges
     handleSelectNode () {
-      const params = this.$refs.network.getSelectedNodes()
-      // console.log('handleSelectNode => ' + JSON.stringify(params))
+      if (!this.network) return
+      const params = this.network.getSelectedNodes()
       if (params.length > 0) {
-        this.$refs.network.setSelection({
-          nodes: params
-        }, {
-          highlightEdges: true
-        })
+        this.network.setSelection({ nodes: params }, { highlightEdges: true })
       }
     },
     // select path to coordinator with highest avergage LQI
     handleDoubleClick () {
-      const params = this.$refs.network.getSelectedNodes()
+      const params = this.network ? this.network.getSelectedNodes() : []
       if (params.length <= 0) {
         return
       }
@@ -451,10 +427,12 @@ export default {
       })
     },
     refreshNetwork () {
-      // no better API found
-      // https://visjs.github.io/vis-network/docs/network/#options
-      this.$refs.network.setData(this.visibleNodes, this.visibleEdges)
-      this.$refs.network.setOptions(this.options)
+      if (!this.network) return
+      this.nodesDataSet.clear()
+      this.nodesDataSet.add(this.visibleNodes)
+      this.edgesDataSet.clear()
+      this.edgesDataSet.add(this.visibleEdges)
+      this.network.setOptions(this.options)
     },
 
     /**
@@ -608,7 +586,10 @@ export default {
     },
     onResize () {
       this.options.height = this.calcWindowHeight().toString()
-      this.$refs.network.fit()
+      if (this.network) {
+        this.network.setOptions({ height: this.options.height })
+        this.network.fit()
+      }
     },
 
     generateEdgeKey (sourceIeeeAddr, targetIeeeAddr) {
@@ -655,12 +636,12 @@ export default {
       })
       if (!this.initialZoomApplied && this.config.initial_zoom !== undefined) {
         this.initialZoomApplied = true
-        this.$refs.network.moveTo({ scale: this.config.initial_zoom })
+        if (this.network) this.network.moveTo({ scale: this.config.initial_zoom })
       }
     },
     saveLayout () {
       console.log('saveLayout')
-      const layout = this.$refs.network.getPositions()
+      const layout = this.network ? this.network.getPositions() : {}
       layout.perfMode = this.perfMode
       layout.showLqi = this.showLqi
       layout.showEnddeviceEdges = this.showEnddeviceEdges
@@ -915,6 +896,53 @@ export default {
     }
   },
   mounted () {
+    // vis.Network and DataSets are stored as plain instance properties (not in
+    // data()) so Vue 3 does not wrap them in a Proxy, which would break vis.js.
+    this.nodesDataSet = new DataSet([])
+    this.edgesDataSet = new DataSet([])
+    this.network = new VisNetwork(
+      this.$refs.networkContainer,
+      { nodes: this.nodesDataSet, edges: this.edgesDataSet },
+      this.options
+    )
+
+    // vis.js uses camelCase event names; vue-visjs used kebab-case
+    this.network.on('click', () => this.networkEvent('click'))
+    this.network.on('doubleClick', () => this.networkEvent('doubleClick'))
+    this.network.on('oncontext', () => this.networkEvent('oncontext'))
+    this.network.on('hold', () => this.networkEvent('hold'))
+    this.network.on('release', () => this.dragRelease())
+    this.network.on('select', () => this.networkEvent('select'))
+    this.network.on('selectNode', () => this.networkEvent('select-node'))
+    this.network.on('selectEdge', () => this.networkEvent('selectEdge'))
+    this.network.on('deselectNode', () => this.networkEvent('deselect-node'))
+    this.network.on('deselectEdge', () => this.networkEvent('deselectEdge'))
+    this.network.on('dragStart', () => this.networkEvent('dragStart'))
+    this.network.on('dragging', () => this.dragging())
+    this.network.on('dragEnd', () => this.networkEvent('dragEnd'))
+    this.network.on('hoverNode', () => this.networkEvent('hoverNode'))
+    this.network.on('blurNode', () => this.networkEvent('blurNode'))
+    this.network.on('hoverEdge', () => this.networkEvent('hoverEdge'))
+    this.network.on('blurEdge', () => this.networkEvent('blurEdge'))
+    this.network.on('zoom', (e) => this.onZoom(e))
+    this.network.on('showPopup', () => this.networkEvent('showPopup'))
+    this.network.on('hidePopup', () => this.networkEvent('hidePopup'))
+    this.network.on('startStabilizing', () => this.networkEvent('startStabilizing'))
+    this.network.on('stabilizationProgress', () => this.networkEvent('stabilizationProgress'))
+    this.network.on('stabilizationIterationsDone', () => this.networkEvent('stabilizationIterationsDone'))
+    this.network.on('stabilized', () => this.stabilized())
+    this.network.on('resize', () => this.onResize())
+    this.network.on('initRedraw', () => this.networkEvent('initRedraw'))
+    this.network.on('beforeDrawing', (ctx) => this.onBeforeDrawing(ctx))
+    this.network.on('afterDrawing', () => this.networkEvent('afterDrawing'))
+    this.network.on('animationFinished', () => this.networkEvent('animationFinished'))
+    this.network.on('configChange', () => this.networkEvent('configChange'))
+  },
+  beforeUnmount () {
+    if (this.network) {
+      this.network.destroy()
+      this.network = null
+    }
   }
 }
 </script>

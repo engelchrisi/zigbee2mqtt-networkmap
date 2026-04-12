@@ -8,7 +8,8 @@
     "lint": "vue-cli-service lint"
   },
   "dependencies": {
-    "vue-visjs": ""
+    "vis-data": "^8.0.3",
+    "vis-network": "^10.0.2"
   },
   "devDependencies": {
     "@babel/core": "^7.0.0",
@@ -17,8 +18,9 @@
     "@vue/cli-plugin-eslint": "^5.0.8",
     "@vue/cli-service": "^5.0.8",
     "@vue/eslint-config-standard": "^8.0.1",
-    "eslint": "^8.42.0",
-    "eslint-plugin-vue": "^9.14.1",
-    "lodash.isequal": "^4.5.0"
+    "eslint": "^8.57.1",
+    "eslint-plugin-vue": "^9.33.0",
+    "lodash.isequal": "^4.5.0",
+    "vue": "^3.5.0"
   }
 }
