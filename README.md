@@ -1,18 +1,17 @@
 # Enhancements
 - Double click on a node to find its strongest path to the Coordinator. Strongest means that the weakest LQI of an edge is greater or equal the weakest LQI of alternative paths.
-- Choose the checkbox "End-Device Edges" to show all edges targeting end devices
-- Choose the checkbox "Router Edges" to show all edges targeting router or coordinator
-- In the "Weak edges" dropdown choose whether
-  - N/A: show them - do nothing
-  - filter them out (hide them)
-  - show them only (and hide others)
-- The "Strong edges" dropdown has the same effect as the "Weak edges" dropdown
+- Toggle **LQI**, **Performance**, **End-Device Edges** and **Router Edges** with styled toggle buttons in the toolbar
+- Filter **Weak** and **Strong** edges via dropdowns (N/A / Only / Hide)
 - Show a background image (e.g. floor plan) behind the network graph that pans and zooms with it — configure with `background_image`, `background_opacity`, `background_network_width`, `background_network_x`, `background_network_y`
-- Live zoom factor displayed in the toolbar
 - Configure an initial zoom level applied after the graph stabilises with `initial_zoom`
 - Reduced zoom speed on touch/tablet screens (70% slower than default)
-- Zoom level, pan position and UI settings (LQI, Performance mode, edge filters) are automatically persisted in `localStorage` and restored on every page reload — independently of MQTT
+- Zoom level, pan position and UI settings are automatically persisted in `localStorage` and restored on every page reload — independently of MQTT
 - Optional `cached_entity` support: the card mirrors the live network map to a retained MQTT topic so nodes are instantly visible after a Home Assistant reboot, without waiting for zigbee2mqtt to regenerate the map
+- **Multi-node selection and drag**: Ctrl/Cmd+click (desktop) or long-press (tablet) to select multiple nodes and drag them together
+- **Rubber-band selection**: hold **Shift** and drag on the canvas to draw a selection rectangle around multiple nodes
+- **Search → Select all**: type in the Search box and press **Select all** to add all matching nodes to the selection
+- **Arrange**: with nodes selected, press **Arrange** to place them in a compact grid around their current centre — useful for grouping devices by room
+- **Last-known refresh timestamp**: if the HA entity is `unknown` or `unavailable` after a reboot, the toolbar shows the most recent valid timestamp with a `(last known)` label until fresh data arrives
 
 # zigbee2mqtt-networkmap
 
@@ -205,17 +204,18 @@ And then refresh the browser.
 
 Q: What is persisted in `localStorage` and how does it relate to MQTT?
 
-A: Three separate browser-local keys are maintained:
+A: Four separate browser-local keys are maintained:
 
 | Key | Contents | When saved |
 |-----|----------|------------|
-| `zigbee2mqtt-networkmap-layout` | Node positions (backup copy) | On every node drag |
-| `zigbee2mqtt-networkmap-viewport` | Pan position + zoom scale | On every zoom or pan |
-| `zigbee2mqtt-networkmap-settings` | LQI, Performance mode, edge filter settings | On every settings change |
+| `zigbee2mqtt-networkmap-layout` | Node positions (backup copy) | On every node drag-and-release |
+| `zigbee2mqtt-networkmap-viewport` | Pan position + zoom scale | On every zoom or pan gesture |
+| `zigbee2mqtt-networkmap-settings` | LQI, Performance mode, edge filter settings | On every toolbar settings change |
+| `zigbee2mqtt-networkmap-last-state` | Last valid refresh timestamp | Whenever the entity reports a real timestamp |
 
 Node positions are primarily stored via MQTT (retained message on `zigbee2mqtt/bridge/networkmap/layout`) and shared across all browsers/devices. The `localStorage` copy is a fallback used automatically when the MQTT retained message is missing (e.g. after a broker restart).
 
-Viewport and settings are `localStorage`-only because they are per-device UI preferences.
+Viewport, settings and the last-known timestamp are `localStorage`-only because they are per-device UI preferences. An empty layout is never saved — if the graph hasn't loaded yet when a drag occurs, the save is silently skipped to protect stored positions.
 
 Q: After a Home Assistant reboot the map shows "Refreshing..." for a long time. How can I fix this?
 
@@ -238,6 +238,16 @@ A: This is probably a Zigbee2mqtt issue, see
 https://github.com/Koenkk/zigbee2mqtt/issues/2436 for discussion.
 
 ## Changelog
+
+#### [0.12.0] - 2026-04-13
+
+* Multi-node selection: Ctrl/Cmd+click on desktop or long-press on tablet to select multiple nodes and drag them as a group
+* Rubber-band selection via **Shift+drag** on the canvas (native `vis-network` multi-select — works on desktop; no extra toolbar button needed)
+* Search → **Select all** button: adds all nodes matching the current search query to the selection
+* **Arrange** button: arranges selected nodes in a compact grid centred on their average position
+* Restyle toolbar: all buttons, checkboxes and dropdowns now have a consistent bordered pill/button appearance with hover and active states; toggle buttons turn blue when active
+* Guard against saving an empty layout during "Refreshing..." — prevents node positions being wiped when the canvas is dragged before the map has loaded
+* Last-known refresh timestamp: when the HA entity is `unknown` or `unavailable` after a reboot, the toolbar shows the most recent valid timestamp with `(last known)` until fresh data arrives
 
 #### [0.11.0] - 2026-04-13
 

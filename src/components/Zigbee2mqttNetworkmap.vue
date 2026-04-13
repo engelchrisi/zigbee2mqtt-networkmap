@@ -4,67 +4,167 @@
     <v-style>
       .flex {
         display: flex;
-        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 6px;
         align-items: center;
+        padding: 6px 8px;
+      }
+      /* ── Action buttons (Refresh, Select, Select all, Collect) ── */
+      .tb-btn {
+        padding: 5px 11px;
+        border: 1px solid #bbb;
+        border-radius: 5px;
+        background: #e8e8e8;
+        color: #333;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.15s, border-color 0.15s;
+        line-height: 1.4;
+      }
+      .tb-btn:hover { background: #d8d8d8; border-color: #999; }
+      .tb-btn:active { background: #c8c8c8; }
+      .tb-btn.tb-active { background: #e94560; color: #fff; border-color: #c73652; }
+      .tb-btn.tb-active:hover { background: #c73652; }
+      .tb-btn.tb-accent { background: #1a73e8; color: #fff; border-color: #1558b0; }
+      .tb-btn.tb-accent:hover { background: #1558b0; }
+      /* ── Toggle checkboxes (LQI, Performance, End-Device Edges, Router Edges) ── */
+      /* OFF state: white background + blue border to signal "clickable toggle" */
+      .tb-check { display: none; }
+      .tb-check + label {
+        padding: 5px 11px;
+        border: 2px solid #1a73e8;
+        border-radius: 5px;
+        background: #fff;
+        color: #1a73e8;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.15s, color 0.15s;
+        line-height: 1.4;
+        display: inline-block;
+      }
+      .tb-check + label:hover { background: #e8f0fe; }
+      /* ON state: filled blue */
+      .tb-check:checked + label { background: #1a73e8; color: #fff; }
+      .tb-select {
+        padding: 5px 6px;
+        border: 1px solid #bbb;
+        border-radius: 5px;
+        background: #f0f0f0;
+        color: #333;
+        font-size: 12px;
+        cursor: pointer;
+        line-height: 1.4;
+      }
+      .tb-input {
+        padding: 5px 8px;
+        border: 1px solid #bbb;
+        border-radius: 5px;
+        font-size: 12px;
+        width: 130px;
+        outline: none;
+        line-height: 1.4;
+      }
+      .tb-input:focus { border-color: #1a73e8; }
+      .tb-label { font-size: 12px; color: #555; white-space: nowrap; }
+      /* Vertical pipe separator between toolbar groups */
+      .tb-sep {
+        width: 1px;
+        height: 22px;
+        background: #ccc;
+        margin: 0 8px;
+        flex-shrink: 0;
+      }
+      /* Grouped box — used for the search cluster */
+      .tb-group {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 7px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        background: #fafafa;
       }
       {{ css }}
     </v-style>
     <div ref="networkContainer" class="network"></div>
     <div id="card-actions" class="card-actions">
       <div class="flex">
-        <mwc-button @click="refresh">Refresh</mwc-button>
-        <div>
-          <input type="checkbox" id="lqi" v-model="showLqi" @change="doUpdateLayout($event)">
-          <label for="checkbox">LQI</label>
-        </div>
-        <div>
-          <input type="checkbox" id="lqi" v-model="perfMode" @change="doUpdateLayout($event)">
-          <label for="checkbox">Performance</label>
-        </div>
-        <div>
-          <input type="checkbox" id="EnddeviceEdgesId" v-model="showEnddeviceEdges" @change="doUpdateLayout($event)">
-          <label for="checkbox">End-Device Edges</label>
-        </div>
-        <div>
-          <input type="checkbox" id="RouterEdgesId" v-model="showRouterEdges" @change="doUpdateLayout($event)">
-          <label for="checkbox">Router Edges</label>
-        </div>
-        <!-- Dropdown for Weak edges -->
-        <div>
-          <label for="weakEdgesDropdown" style="margin-right: 8px;">Weak edges</label>
-          <select id="weakEdgesDropdown" v-model="selectedWeakEdgeOption" @change="doUpdateLayout($event)">
-            <option value="na" selected>N/A</option>
-            <option value="showOnly">Show Only</option>
-            <option value="filterOut">Filter out</option>
-          </select>
-        </div>
-        <!-- Dropdown for strong edges -->
-        <div>
-          <label for="strongEdgesDropdown" style="margin-right: 8px;">Strong edges</label>
-          <select id="strongEdgesDropdown" v-model="selectedStrongEdgeOption" @change="doUpdateLayout($event)">
-            <option value="na" selected>N/A</option>
-            <option value="showOnly">Show Only</option>
-            <option value="filterOut">Filter out</option>
+
+        <!-- Group 1: Actions -->
+        <button class="tb-btn" @click="refresh">Refresh</button>
+
+        <div class="tb-sep"></div>
+
+        <!-- Group 2: Display toggles -->
+        <input class="tb-check" type="checkbox" id="chk-lqi" v-model="showLqi" @change="doUpdateLayout($event)">
+        <label for="chk-lqi">LQI</label>
+
+        <input class="tb-check" type="checkbox" id="chk-perf" v-model="perfMode" @change="doUpdateLayout($event)">
+        <label for="chk-perf">Performance</label>
+
+        <input class="tb-check" type="checkbox" id="chk-endedges" v-model="showEnddeviceEdges" @change="doUpdateLayout($event)">
+        <label for="chk-endedges">End-Device Edges</label>
+
+        <input class="tb-check" type="checkbox" id="chk-routeredges" v-model="showRouterEdges" @change="doUpdateLayout($event)">
+        <label for="chk-routeredges">Router Edges</label>
+
+        <div class="tb-sep"></div>
+
+        <!-- Group 3: Edge filters -->
+        <div style="display:flex;align-items:center;gap:4px;">
+          <span class="tb-label">Weak</span>
+          <select class="tb-select" id="weakEdgesDropdown" v-model="selectedWeakEdgeOption" @change="doUpdateLayout($event)">
+            <option value="na">N/A</option>
+            <option value="showOnly">Only</option>
+            <option value="filterOut">Hide</option>
           </select>
         </div>
         <div style="display:flex;align-items:center;gap:4px;">
-          <input
-            type="text"
-            v-model="searchQuery"
-            placeholder="Search nodes…"
-            style="padding:2px 6px;border:1px solid #ccc;border-radius:3px;font-size:12px;width:130px;outline:none;"
-          >
-          <span v-if="searchQuery.trim()" style="font-size:12px;white-space:nowrap;">
+          <span class="tb-label">Strong</span>
+          <select class="tb-select" id="strongEdgesDropdown" v-model="selectedStrongEdgeOption" @change="doUpdateLayout($event)">
+            <option value="na">N/A</option>
+            <option value="showOnly">Only</option>
+            <option value="filterOut">Hide</option>
+          </select>
+        </div>
+
+        <div class="tb-sep"></div>
+
+        <!-- Group 4: Search (boxed to show it's one unit) -->
+        <div class="tb-group">
+          <input class="tb-input" type="text" v-model="searchQuery" placeholder="Search nodes…">
+          <span v-if="searchQuery.trim()" class="tb-label">
             {{ searchMatchIds ? searchMatchIds.size : 0 }}
             match{{ searchMatchIds && searchMatchIds.size === 1 ? '' : 'es' }}
           </span>
+          <button
+            v-if="searchMatchIds && searchMatchIds.size > 0"
+            class="tb-btn tb-accent"
+            @click="selectSearchMatches"
+            title="Add all search matches to the selection so you can drag them together"
+          >Select all</button>
         </div>
-        <div>{{ state }}</div>
-        <div>Edges: {{ visibleEdges.length }} / {{ allEdges.length }}</div>
-        <div>Zoom: {{ zoomScale }}</div>
+
+        <!-- Group 5: Selection actions (conditional) -->
+        <template v-if="selectedNodeCount > 0">
+          <div class="tb-sep"></div>
+          <span class="tb-label" style="font-weight:600;">{{ selectedNodeCount }} selected</span>
+          <button class="tb-btn tb-accent" @click="collectSelected" title="Arrange selected nodes in a grid around their current centre">Arrange</button>
+        </template>
+
+        <div class="tb-sep"></div>
+
+        <!-- State -->
+        <span class="tb-label">{{ state }}</span>
+
       </div>
     </div>
   </ha-card>
+
 </template>
 
 <script>
@@ -191,6 +291,7 @@ export default {
       zoomScale: '1.00',
       initialZoomApplied: false,
       zoomRestored: false, // one-time flag; never reset by update() so the user's zoom survives data refreshes
+      selectedNodeCount: 0,
       // network data model - s. v-bind
       visibleNodes: /** @type {Node[]} */ [], // An array intended to hold instances of the Node class
       visibleEdges: /** @type {Edge[]} */ [], // An array intended to hold instances of the Edge class
@@ -224,7 +325,9 @@ export default {
           // https://visjs.github.io/vis-network/examples/network/edgeStyles/smoothWorldCup.html
           hideEdgesOnDrag: false,
           // Reduce zoom speed — the default (1.0) is too fast on tablet touch screens
-          zoomSpeed: 0.3
+          zoomSpeed: 0.3,
+          // Ctrl/Cmd+click on desktop; long-press on touch to add to selection
+          multiselect: true
         }
         // configure: {
         //   filter: function (option, path) {
@@ -311,7 +414,16 @@ export default {
           oldAttr = oldHass.states[entity].attributes
         }
         if (newAttr !== oldAttr) {
-          this.state = newHass.states[entity].state
+          const raw = newHass.states[entity].state
+          if (raw && raw !== 'unknown' && raw !== 'unavailable') {
+            this.state = raw
+            try { localStorage.setItem('zigbee2mqtt-networkmap-last-state', raw) } catch (e) { /* ignore */ }
+          } else {
+            // Entity not yet ready — show last known timestamp if we have one
+            let cached = null
+            try { cached = localStorage.getItem('zigbee2mqtt-networkmap-last-state') } catch (e) { /* ignore */ }
+            this.state = cached ? cached + ' (last known)' : raw
+          }
         }
         if (!isEqual(newAttr, oldAttr)) {
           this.update()
@@ -671,6 +783,58 @@ export default {
       console.log('dragRelease')
       // save state
       this.saveLayout()
+    },
+    selectSearchMatches () {
+      if (!this.network || !this.searchMatchIds) return
+      const ids = [...this.searchMatchIds]
+      // Merge with any already-selected nodes
+      const current = this.network.getSelectedNodes()
+      const merged = [...new Set([...current, ...ids])]
+      this.network.selectNodes(merged)
+      this.selectedNodeCount = merged.length
+      console.log('[search] selected', ids.length, 'search matches, total selected:', merged.length)
+    },
+    collectSelected () {
+      if (!this.network) return
+      const ids = this.network.getSelectedNodes()
+      if (ids.length < 2) return
+      const positions = this.network.getPositions(ids)
+
+      // Find the centroid of the current selection
+      let cx = 0; let cy = 0
+      ids.forEach(id => { cx += positions[id].x; cy += positions[id].y })
+      cx /= ids.length
+      cy /= ids.length
+
+      // Arrange in a tight grid centred on that centroid
+      const spacing = (this.config.node_size || 16) * 4
+      const cols = Math.ceil(Math.sqrt(ids.length))
+      const rows = Math.ceil(ids.length / cols)
+      const startX = cx - ((cols - 1) * spacing) / 2
+      const startY = cy - ((rows - 1) * spacing) / 2
+
+      ids.forEach((id, i) => {
+        const col = i % cols
+        const row = Math.floor(i / cols)
+        const newPos = { x: startX + col * spacing, y: startY + row * spacing }
+        this.network.moveNode(id, newPos.x, newPos.y)
+        const node = this.visibleNodes.find(n => n.id === id)
+        if (node) { node.x = newPos.x; node.y = newPos.y; node.physics = false }
+      })
+
+      this.saveLayout()
+      console.log('[collect] arranged', ids.length, 'nodes in', cols, '×', rows, 'grid around', cx.toFixed(0), cy.toFixed(0))
+    },
+    unpinSelected () {
+      if (!this.network) return
+      const ids = this.network.getSelectedNodes()
+      ids.forEach(nodeId => {
+        const node = this.visibleNodes.find(n => n.id === nodeId)
+        if (node) node.physics = true
+      })
+      this.network.unselectAll()
+      this.selectedNodeCount = 0
+      console.log('[multiselect] unpinned', ids.length, 'nodes:', ids)
     },
     dragging () {
 
@@ -1154,13 +1318,23 @@ export default {
     this.network.on('hold', () => this.networkEvent('hold'))
     this.network.on('release', () => this.dragRelease())
     this.network.on('select', () => this.networkEvent('select'))
-    this.network.on('selectNode', () => this.networkEvent('select-node'))
+    this.network.on('selectNode', () => { this.networkEvent('select-node'); this.selectedNodeCount = this.network.getSelectedNodes().length })
     this.network.on('selectEdge', () => this.networkEvent('selectEdge'))
-    this.network.on('deselectNode', () => this.networkEvent('deselect-node'))
+    this.network.on('deselectNode', () => { this.networkEvent('deselect-node'); this.selectedNodeCount = this.network.getSelectedNodes().length })
     this.network.on('deselectEdge', () => this.networkEvent('deselectEdge'))
     this.network.on('dragStart', () => this.networkEvent('dragStart'))
     this.network.on('dragging', () => this.dragging())
-    this.network.on('dragEnd', () => { this.networkEvent('dragEnd'); this.saveViewport() })
+    this.network.on('dragEnd', (params) => {
+      // Pin every node that was part of this drag so it stays where dropped
+      if (params.nodes && params.nodes.length > 0) {
+        params.nodes.forEach(nodeId => {
+          const node = this.visibleNodes.find(n => n.id === nodeId)
+          if (node) node.physics = false
+        })
+      }
+      this.networkEvent('dragEnd')
+      this.saveViewport()
+    })
     this.network.on('hoverNode', () => this.networkEvent('hoverNode'))
     this.network.on('blurNode', () => this.networkEvent('blurNode'))
     this.network.on('hoverEdge', () => this.networkEvent('hoverEdge'))
