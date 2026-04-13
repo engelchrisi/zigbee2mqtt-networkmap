@@ -190,6 +190,7 @@ export default {
       bgImage: null,
       zoomScale: '1.00',
       initialZoomApplied: false,
+      zoomRestored: false, // one-time flag; never reset by update() so the user's zoom survives data refreshes
       // network data model - s. v-bind
       visibleNodes: /** @type {Node[]} */ [], // An array intended to hold instances of the Node class
       visibleEdges: /** @type {Edge[]} */ [], // An array intended to hold instances of the Edge class
@@ -221,7 +222,9 @@ export default {
         interaction: {
           selectConnectedEdges: false,
           // https://visjs.github.io/vis-network/examples/network/edgeStyles/smoothWorldCup.html
-          hideEdgesOnDrag: false
+          hideEdgesOnDrag: false,
+          // Reduce zoom speed — the default (1.0) is too fast on tablet touch screens
+          zoomSpeed: 0.3
         }
         // configure: {
         //   filter: function (option, path) {
@@ -350,8 +353,19 @@ export default {
         })
       )
     },
+    saveViewport () {
+      if (!this.network) return
+      const pos = this.network.getViewPosition()
+      const scale = this.network.getScale()
+      try {
+        localStorage.setItem('zigbee2mqtt-networkmap-viewport', JSON.stringify({ x: pos.x, y: pos.y, scale }))
+        // keep legacy key in sync so old code reading it still works
+        localStorage.setItem('zigbee2mqtt-networkmap-zoom', scale.toFixed(2))
+      } catch (e) {}
+    },
     onZoom (event) {
       this.zoomScale = event.scale.toFixed(2)
+      this.saveViewport()
     },
     onBeforeDrawing (ctx) {
       if (!this.bgImage || !this.bgImage.complete) return
@@ -699,9 +713,32 @@ export default {
       this.visibleNodes.forEach(node => {
         node.physics = false
       })
-      if (!this.initialZoomApplied && this.config.initial_zoom !== undefined) {
-        this.initialZoomApplied = true
-        if (this.network) this.network.moveTo({ scale: this.config.initial_zoom })
+      // Restore viewport exactly once per page-load (zoomRestored is never reset by update())
+      // so that a data refresh from Home Assistant cannot reset the user's position/zoom.
+      if (!this.zoomRestored) {
+        this.zoomRestored = true
+        let viewport = null
+        try {
+          const saved = localStorage.getItem('zigbee2mqtt-networkmap-viewport')
+          if (saved) viewport = JSON.parse(saved)
+        } catch (e) {}
+        // Legacy fallback: zoom-only key written by older versions
+        if (!viewport) {
+          try {
+            const savedZoom = localStorage.getItem('zigbee2mqtt-networkmap-zoom')
+            if (savedZoom) viewport = { scale: parseFloat(savedZoom) }
+          } catch (e) {}
+        }
+        // Final fallback: card config
+        if (!viewport && this.config.initial_zoom !== undefined) {
+          viewport = { scale: this.config.initial_zoom }
+        }
+        if (viewport && this.network) {
+          const moveOpts = { scale: viewport.scale }
+          if (viewport.x !== undefined) moveOpts.position = { x: viewport.x, y: viewport.y }
+          this.network.moveTo(moveOpts)
+          this.zoomScale = viewport.scale.toFixed(2)
+        }
       }
     },
     saveLayout () {
@@ -914,7 +951,7 @@ export default {
     // =====================================================
     update () {
       console.log('update')
-      this.initialZoomApplied = false
+      this.initialZoomApplied = false // kept for backwards-compat; zoom restoration now uses zoomRestored instead
       const attr = this.hass.states[this.config.entity].attributes // TODO rename
       if (!attr.nodes && !this.initialized) {
         this.initialized = true
@@ -1006,7 +1043,7 @@ export default {
     this.network.on('deselectEdge', () => this.networkEvent('deselectEdge'))
     this.network.on('dragStart', () => this.networkEvent('dragStart'))
     this.network.on('dragging', () => this.dragging())
-    this.network.on('dragEnd', () => this.networkEvent('dragEnd'))
+    this.network.on('dragEnd', () => { this.networkEvent('dragEnd'); this.saveViewport() })
     this.network.on('hoverNode', () => this.networkEvent('hoverNode'))
     this.network.on('blurNode', () => this.networkEvent('blurNode'))
     this.network.on('hoverEdge', () => this.networkEvent('hoverEdge'))
