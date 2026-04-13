@@ -10,6 +10,9 @@
 - Show a background image (e.g. floor plan) behind the network graph that pans and zooms with it — configure with `background_image`, `background_opacity`, `background_network_width`, `background_network_x`, `background_network_y`
 - Live zoom factor displayed in the toolbar
 - Configure an initial zoom level applied after the graph stabilises with `initial_zoom`
+- Reduced zoom speed on touch/tablet screens (70% slower than default)
+- Zoom level, pan position and UI settings (LQI, Performance mode, edge filters) are automatically persisted in `localStorage` and restored on every page reload — independently of MQTT
+- Optional `cached_entity` support: the card mirrors the live network map to a retained MQTT topic so nodes are instantly visible after a Home Assistant reboot, without waiting for zigbee2mqtt to regenerate the map
 
 # zigbee2mqtt-networkmap
 
@@ -45,6 +48,15 @@ mqtt:
         {{ now().strftime('%Y-%m-%d %H:%M:%S') }}
       json_attributes_topic: zigbee2mqtt/bridge/networkmap/layout
       json_attributes_template: "{{ value_json | tojson }}"
+    # Optional but recommended: retains a copy of the last network map so the
+    # card can show nodes immediately after a Home Assistant reboot, without
+    # waiting for zigbee2mqtt to regenerate the map (~1-2 min on large networks).
+    - name: zigbee2mqtt_networkmap_cached
+      state_topic: zigbee2mqtt/bridge/networkmap/cached
+      value_template: >-
+        {{ now().strftime('%Y-%m-%d %H:%M:%S') }}
+      json_attributes_topic: zigbee2mqtt/bridge/networkmap/cached
+      json_attributes_template: "{{ value_json.data.value | tojson }}"
 ```
 
 ### Frontend setup (HACS)
@@ -90,7 +102,8 @@ cards:
     background_network_width: 1000       # optional: width of the background image in network coordinate units (height auto from aspect ratio, default 1000)
     # background_network_x: -500        # optional: left edge of the image in network coords (default: -background_network_width/2)
     # background_network_y: -500        # optional: top edge of the image in network coords (default: -height/2)
-    initial_zoom: 0.5                    # optional: zoom scale applied once after the graph stabilises (read live value from the "Zoom:" display in the toolbar)
+    initial_zoom: 0.5                    # optional: fallback zoom scale on first load — overridden by persisted zoom once user has zoomed
+    cached_entity: sensor.zigbee2mqtt_networkmap_cached  # optional: shows last known map instantly after HA reboot while live map loads
     # use this css config or use whatever css tech to change look and feel,
     # the same variable can also be used in Home Assistant themes, see https://www.home-assistant.io/components/frontend/#defining-themes
     css: |
@@ -190,6 +203,24 @@ And then refresh the browser.
 
 ## FAQ
 
+Q: What is persisted in `localStorage` and how does it relate to MQTT?
+
+A: Three separate browser-local keys are maintained:
+
+| Key | Contents | When saved |
+|-----|----------|------------|
+| `zigbee2mqtt-networkmap-layout` | Node positions (backup copy) | On every node drag |
+| `zigbee2mqtt-networkmap-viewport` | Pan position + zoom scale | On every zoom or pan |
+| `zigbee2mqtt-networkmap-settings` | LQI, Performance mode, edge filter settings | On every settings change |
+
+Node positions are primarily stored via MQTT (retained message on `zigbee2mqtt/bridge/networkmap/layout`) and shared across all browsers/devices. The `localStorage` copy is a fallback used automatically when the MQTT retained message is missing (e.g. after a broker restart).
+
+Viewport and settings are `localStorage`-only because they are per-device UI preferences.
+
+Q: After a Home Assistant reboot the map shows "Refreshing..." for a long time. How can I fix this?
+
+A: Add the optional `cached_entity` sensor to your MQTT config and reference it in your card config (see [Backend setup](#backend-setup) and [Card setup](#card-setup-dashboard-web-ui)). Once configured, the card writes a retained copy of the live network map to MQTT after every successful load. On the next reboot, HA restores the cached entity immediately and the card shows nodes straight away, without waiting for zigbee2mqtt to regenerate the map.
+
 Q: How can I customize device names in the map?
 
 A: The names showed in the map are given by Zigbee2mqtt, you need to configure
@@ -208,12 +239,20 @@ https://github.com/Koenkk/zigbee2mqtt/issues/2436 for discussion.
 
 ## Changelog
 
+#### [0.11.0] - 2026-04-13
+
+* Reduce zoom speed on touch/tablet screens (`zoomSpeed: 0.3`) to prevent over-shooting
+* Persist zoom level, pan position and UI settings (LQI, Performance mode, edge filters) in `localStorage` — restored on every page reload, independent of MQTT and HA reboots
+* Add `cached_entity` card option: mirrors the live network map to a retained MQTT topic (`zigbee2mqtt/bridge/networkmap/cached`) so the card can display nodes instantly after a Home Assistant reboot instead of waiting for zigbee2mqtt to regenerate the map
+* Add build timestamp baked into the bundle — logged as a styled banner in the browser console on startup
+* Add detailed `[persist]`, `[cache]` and `[refresh]` console logging to aid debugging of persistence and startup behaviour
+
 #### [0.10.0] - 2026-04-12
 
 * Add background image support (`background_image`, `background_opacity`) — image pans and zooms with the graph
 * Add background image positioning and sizing in network coordinate space (`background_network_width`, `background_network_x`, `background_network_y`)
 * Show live zoom factor in the toolbar
-* Add `initial_zoom` config option to set the zoom level applied after graph stabilisation
+* Add `initial_zoom` config option to set the zoom level applied after graph stabilisation — acts as a fallback when no persisted zoom exists
 
 #### [0.9.0] - 2024-02-29
 

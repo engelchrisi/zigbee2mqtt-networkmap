@@ -1,3 +1,5 @@
+const webpack = require('webpack')
+
 module.exports = {
   publicPath: './',
   css: {
@@ -12,7 +14,13 @@ module.exports = {
     },
     optimization: {
       splitChunks: false
-    }
+    },
+    plugins: [
+      new webpack.DefinePlugin({
+        __BUILD_TIMESTAMP__: JSON.stringify(new Date().toISOString()),
+        __VERSION__: JSON.stringify(require('./package.json').version)
+      })
+    ]
   },
   productionSourceMap: false
 }

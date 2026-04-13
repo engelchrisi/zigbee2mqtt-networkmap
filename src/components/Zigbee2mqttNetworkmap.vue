@@ -353,15 +353,35 @@ export default {
         })
       )
     },
+    saveSettings () {
+      const settings = {
+        perfMode: this.perfMode,
+        showLqi: this.showLqi,
+        showEnddeviceEdges: this.showEnddeviceEdges,
+        showRouterEdges: this.showRouterEdges,
+        selectedWeakEdgeOption: this.selectedWeakEdgeOption,
+        selectedStrongEdgeOption: this.selectedStrongEdgeOption
+      }
+      console.log('[persist] saveSettings', settings)
+      try {
+        localStorage.setItem('zigbee2mqtt-networkmap-settings', JSON.stringify(settings))
+      } catch (e) {
+        console.error('[persist] saveSettings localStorage error', e)
+      }
+    },
     saveViewport () {
       if (!this.network) return
       const pos = this.network.getViewPosition()
       const scale = this.network.getScale()
+      const viewport = { x: pos.x, y: pos.y, scale }
+      console.log('[persist] saveViewport', viewport)
       try {
-        localStorage.setItem('zigbee2mqtt-networkmap-viewport', JSON.stringify({ x: pos.x, y: pos.y, scale }))
+        localStorage.setItem('zigbee2mqtt-networkmap-viewport', JSON.stringify(viewport))
         // keep legacy key in sync so old code reading it still works
         localStorage.setItem('zigbee2mqtt-networkmap-zoom', scale.toFixed(2))
-      } catch (e) {}
+      } catch (e) {
+        console.error('[persist] saveViewport localStorage error', e)
+      }
     },
     onZoom (event) {
       this.zoomScale = event.scale.toFixed(2)
@@ -718,21 +738,30 @@ export default {
       if (!this.zoomRestored) {
         this.zoomRestored = true
         let viewport = null
+        let source = 'none'
         try {
           const saved = localStorage.getItem('zigbee2mqtt-networkmap-viewport')
-          if (saved) viewport = JSON.parse(saved)
-        } catch (e) {}
+          console.log('[persist] stabilized: localStorage viewport raw =', saved)
+          if (saved) { viewport = JSON.parse(saved); source = 'localStorage-viewport' }
+        } catch (e) {
+          console.error('[persist] stabilized: error reading viewport from localStorage', e)
+        }
         // Legacy fallback: zoom-only key written by older versions
         if (!viewport) {
           try {
             const savedZoom = localStorage.getItem('zigbee2mqtt-networkmap-zoom')
-            if (savedZoom) viewport = { scale: parseFloat(savedZoom) }
-          } catch (e) {}
+            console.log('[persist] stabilized: localStorage zoom (legacy) raw =', savedZoom)
+            if (savedZoom) { viewport = { scale: parseFloat(savedZoom) }; source = 'localStorage-zoom-legacy' }
+          } catch (e) {
+            console.error('[persist] stabilized: error reading legacy zoom from localStorage', e)
+          }
         }
         // Final fallback: card config
         if (!viewport && this.config.initial_zoom !== undefined) {
           viewport = { scale: this.config.initial_zoom }
+          source = 'config-initial_zoom'
         }
+        console.log('[persist] stabilized: restoring viewport from', source, viewport)
         if (viewport && this.network) {
           const moveOpts = { scale: viewport.scale }
           if (viewport.x !== undefined) moveOpts.position = { x: viewport.x, y: viewport.y }
@@ -742,14 +771,22 @@ export default {
       }
     },
     saveLayout () {
-      console.log('saveLayout')
+      console.log('[persist] saveLayout')
       const layout = this.network ? this.network.getPositions() : {}
+      const nodeCount = Object.keys(layout).length
+      if (nodeCount === 0) {
+        console.warn('[persist] saveLayout: ABORTED — no nodes loaded yet (graph still initialising or refreshing). Saving an empty layout would wipe all stored positions.')
+        return
+      }
       layout.perfMode = this.perfMode
       layout.showLqi = this.showLqi
       layout.showEnddeviceEdges = this.showEnddeviceEdges
       layout.showRouterEdges = this.showRouterEdges
       layout.selectedWeakEdgeOption = this.selectedWeakEdgeOption
       layout.selectedStrongEdgeOption = this.selectedStrongEdgeOption
+      const settingsKeys = new Set(['perfMode', 'showLqi', 'showEnddeviceEdges', 'showRouterEdges', 'selectedWeakEdgeOption', 'selectedStrongEdgeOption'])
+      const positionCount = Object.keys(layout).filter(k => !settingsKeys.has(k)).length
+      console.log('[persist] saveLayout: saving', positionCount, 'node positions to localStorage + MQTT')
       if (this.hass.states[this.config.layout_entity] && this.hass.states[this.config.layout_entity].attributes) {
         this.hass.states[this.config.layout_entity].attributes.perfMode = this.perfMode
         this.hass.states[this.config.layout_entity].attributes.showLqi = this.showLqi
@@ -759,8 +796,14 @@ export default {
         this.hass.states[this.config.layout_entity].attributes.selectedStrongEdgeOption = this.selectedStrongEdgeOption
       }
       // Mirror to localStorage so positions survive an MQTT broker restart
-      try { localStorage.setItem('zigbee2mqtt-networkmap-layout', JSON.stringify(layout)) } catch (e) {}
+      try {
+        localStorage.setItem('zigbee2mqtt-networkmap-layout', JSON.stringify(layout))
+        console.log('[persist] saveLayout: localStorage write OK')
+      } catch (e) {
+        console.error('[persist] saveLayout: localStorage write FAILED', e)
+      }
       const mqttBaseTopic = this.config.mqtt_base_topic || 'zigbee2mqtt'
+      console.log('[persist] saveLayout: publishing to MQTT topic', mqttBaseTopic + '/bridge/networkmap/layout')
       this.hass.callService('mqtt', 'publish', {
         topic: mqttBaseTopic + '/bridge/networkmap/layout',
         retain: true,
@@ -772,6 +815,7 @@ export default {
     },
     doUpdateLayout (e) {
       console.log('doUpdateLayout' + e)
+      this.saveSettings()
       this.saveLayout()
       this.update()
       // necessary for showLQI changes
@@ -779,6 +823,8 @@ export default {
     },
     refresh () {
       this.state = 'Refreshing...'
+      this._refreshStartedAt = Date.now()
+      console.log('[refresh] started — waiting for zigbee2mqtt to publish network map')
       const mqttBaseTopic = this.config.mqtt_base_topic || 'zigbee2mqtt'
       this.hass.callService('mqtt', 'publish', {
         topic: mqttBaseTopic + '/bridge/request/networkmap',
@@ -952,20 +998,64 @@ export default {
     update () {
       console.log('update')
       this.initialZoomApplied = false // kept for backwards-compat; zoom restoration now uses zoomRestored instead
-      const attr = this.hass.states[this.config.entity].attributes // TODO rename
+      let attr = this.hass.states[this.config.entity].attributes // TODO rename
+      const liveHasNodes = !!(attr.nodes && attr.nodes.length)
+      let usingCache = false
+      // If live entity has no nodes yet, try the retained cache entity so the map
+      // is immediately visible after a reboot while the live map is still loading
+      if (!liveHasNodes && this.config.cached_entity) {
+        const cachedState = this.hass.states[this.config.cached_entity]
+        if (cachedState && cachedState.attributes && cachedState.attributes.nodes) {
+          console.log('[cache] live entity has no nodes — reading from cached entity', this.config.cached_entity,
+            '(' + cachedState.attributes.nodes.length + ' nodes,', cachedState.attributes.links ? cachedState.attributes.links.length : 0, 'links,',
+            'state:', cachedState.state + ')')
+          attr = cachedState.attributes
+          usingCache = true
+        } else {
+          console.log('[cache] live entity has no nodes and cached entity',
+            this.config.cached_entity || '(not configured)',
+            cachedState ? 'exists but has no nodes' : 'not found in HA states')
+        }
+      } else if (liveHasNodes) {
+        console.log('[cache] live entity has', attr.nodes.length, 'nodes — using live data')
+      }
       if (!attr.nodes && !this.initialized) {
         this.initialized = true
         this.refresh()
         return
       }
-      let layout = this.hass.states[this.config.layout_entity] ? this.hass.states[this.config.layout_entity].attributes : null
+      if (this._refreshStartedAt) {
+        const elapsed = ((Date.now() - this._refreshStartedAt) / 1000).toFixed(1)
+        console.log('[refresh] done — took ' + elapsed + 's, got ' + (attr.nodes ? attr.nodes.length : 0) + ' nodes')
+        this._refreshStartedAt = null
+      }
+      // Mirror fresh live data to the retained cache topic — skip when we're already reading from the cache
+      if (liveHasNodes && !usingCache && attr.links) {
+        const mqttBaseTopic = this.config.mqtt_base_topic || 'zigbee2mqtt'
+        const cacheTopic = mqttBaseTopic + '/bridge/networkmap/cached'
+        console.log('[cache] writing live map to retained cache topic', cacheTopic,
+          '(' + attr.nodes.length + ' nodes,', attr.links.length, 'links)')
+        this.hass.callService('mqtt', 'publish', {
+          topic: cacheTopic,
+          retain: true,
+          payload: JSON.stringify({ data: { value: { nodes: attr.nodes, links: attr.links } } })
+        })
+      }
+      const layoutFromMqtt = this.hass.states[this.config.layout_entity] ? this.hass.states[this.config.layout_entity].attributes : null
+      console.log('[persist] update: layout_entity =', this.config.layout_entity, '| from MQTT:', layoutFromMqtt ? 'yes (' + Object.keys(layoutFromMqtt).length + ' keys)' : 'null/missing')
+      let layout = layoutFromMqtt
+      let layoutSource = layoutFromMqtt ? 'MQTT' : 'none'
       // Fall back to localStorage when the MQTT retained message is missing (e.g. after broker restart)
       if (!layout) {
         try {
           const stored = localStorage.getItem('zigbee2mqtt-networkmap-layout')
-          if (stored) layout = JSON.parse(stored)
-        } catch (e) {}
+          console.log('[persist] update: MQTT layout missing — localStorage raw length:', stored ? stored.length : 0)
+          if (stored) { layout = JSON.parse(stored); layoutSource = 'localStorage' }
+        } catch (e) {
+          console.error('[persist] update: error reading layout from localStorage', e)
+        }
       }
+      console.log('[persist] update: using layout from', layoutSource)
       this.perfMode = layout ? layout.perfMode || false : false
       this.options.interaction.hideEdgesOnDrag = this.perfMode
       this.showLqi = layout ? layout.showLqi || false : false
@@ -973,6 +1063,25 @@ export default {
       this.showRouterEdges = layout?.showRouterEdges ?? true
       this.selectedWeakEdgeOption = layout ? layout.selectedWeakEdgeOption || 'na' : 'na'
       this.selectedStrongEdgeOption = layout ? layout.selectedStrongEdgeOption || 'na' : 'na'
+      // Restore settings from dedicated localStorage key — takes priority over MQTT layout
+      // so UI preferences survive HA reboots independently of node positions
+      try {
+        const savedSettings = localStorage.getItem('zigbee2mqtt-networkmap-settings')
+        if (savedSettings) {
+          const s = JSON.parse(savedSettings)
+          console.log('[persist] update: restoring settings from localStorage', s)
+          if (s.perfMode !== undefined) { this.perfMode = s.perfMode; this.options.interaction.hideEdgesOnDrag = s.perfMode }
+          if (s.showLqi !== undefined) this.showLqi = s.showLqi
+          if (s.showEnddeviceEdges !== undefined) this.showEnddeviceEdges = s.showEnddeviceEdges
+          if (s.showRouterEdges !== undefined) this.showRouterEdges = s.showRouterEdges
+          if (s.selectedWeakEdgeOption !== undefined) this.selectedWeakEdgeOption = s.selectedWeakEdgeOption
+          if (s.selectedStrongEdgeOption !== undefined) this.selectedStrongEdgeOption = s.selectedStrongEdgeOption
+        } else {
+          console.log('[persist] update: no saved settings in localStorage, using layout defaults')
+        }
+      } catch (e) {
+        console.error('[persist] update: error restoring settings from localStorage', e)
+      }
 
       // /////////////////////////////////
       // nodes update
@@ -1020,6 +1129,14 @@ export default {
     }
   },
   mounted () {
+    /* eslint-disable no-undef */
+    console.log(
+      '%c Zigbee2MQTT Networkmap %c v' + __VERSION__ + ' %c ' + __BUILD_TIMESTAMP__ + ' ',
+      'background:#1a1a2e; color:#e94560; font-weight:bold; border-radius:3px 0 0 3px; padding:2px 6px',
+      'background:#e94560; color:#fff; font-weight:bold; padding:2px 6px',
+      'background:#0f3460; color:#a8dadc; padding:2px 6px; border-radius:0 3px 3px 0'
+    )
+    /* eslint-enable no-undef */
     // vis.Network and DataSets are stored as plain instance properties (not in
     // data()) so Vue 3 does not wrap them in a Proxy, which would break vis.js.
     this.nodesDataSet = new DataSet([])
