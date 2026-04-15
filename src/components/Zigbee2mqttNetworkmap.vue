@@ -29,7 +29,8 @@
       .tb-btn.tb-active:hover { background: #c73652; }
       .tb-btn.tb-accent { background: #1a73e8; color: #fff; border-color: #1558b0; }
       .tb-btn.tb-accent:hover { background: #1558b0; }
-      /* ── Toggle checkboxes (LQI, Performance, End-Device Edges, Router Edges) ── */
+      .tb-btn:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+      /* ── Toggle checkboxes (LQI, Fast-Drag, End-Device Edges, Router Edges) ── */
       /* OFF state: white background + blue border to signal "clickable toggle" */
       .tb-check { display: none; }
       .tb-check + label {
@@ -88,6 +89,13 @@
         border-radius: 6px;
         background: #fafafa;
       }
+      .tb-version {
+        margin-left: auto;
+        font-size: 11px;
+        color: #888;
+        flex-shrink: 0;
+        align-self: center;
+      }
       {{ css }}
     </v-style>
     <div ref="networkContainer" class="network"></div>
@@ -95,28 +103,26 @@
       <div class="flex">
 
         <!-- Group 1: Actions -->
-        <button class="tb-btn" @click="refresh">Refresh</button>
+        <button class="tb-btn" @click="refresh" :disabled="refreshInProgress">Refresh</button>
+        <span class="tb-label">{{ state }}</span>
 
         <div class="tb-sep"></div>
 
         <!-- Group 2: Display toggles -->
-        <input class="tb-check" type="checkbox" id="chk-lqi" v-model="showLqi" @change="doUpdateLayout($event)">
-        <label for="chk-lqi">LQI</label>
-
-        <input class="tb-check" type="checkbox" id="chk-perf" v-model="perfMode" @change="doUpdateLayout($event)">
-        <label for="chk-perf">Performance</label>
-
         <input class="tb-check" type="checkbox" id="chk-endedges" v-model="showEnddeviceEdges" @change="doUpdateLayout($event)">
         <label for="chk-endedges">End-Device Edges</label>
 
         <input class="tb-check" type="checkbox" id="chk-routeredges" v-model="showRouterEdges" @change="doUpdateLayout($event)">
         <label for="chk-routeredges">Router Edges</label>
 
+        <input class="tb-check" type="checkbox" id="chk-lqi" v-model="showLqi" @change="doUpdateLayout($event)">
+        <label for="chk-lqi">LQI</label>
+
         <div class="tb-sep"></div>
 
         <!-- Group 3: Edge filters -->
         <div style="display:flex;align-items:center;gap:4px;">
-          <span class="tb-label">Weak</span>
+          <span class="tb-label">Weak Edges:</span>
           <select class="tb-select" id="weakEdgesDropdown" v-model="selectedWeakEdgeOption" @change="doUpdateLayout($event)">
             <option value="na">N/A</option>
             <option value="showOnly">Only</option>
@@ -124,7 +130,7 @@
           </select>
         </div>
         <div style="display:flex;align-items:center;gap:4px;">
-          <span class="tb-label">Strong</span>
+          <span class="tb-label">Strong Edges:</span>
           <select class="tb-select" id="strongEdgesDropdown" v-model="selectedStrongEdgeOption" @change="doUpdateLayout($event)">
             <option value="na">N/A</option>
             <option value="showOnly">Only</option>
@@ -134,7 +140,7 @@
 
         <div class="tb-sep"></div>
 
-        <!-- Group 4: Search (boxed to show it's one unit) -->
+        <!-- Group 4: Search + selection actions (boxed) -->
         <div class="tb-group">
           <input class="tb-input" type="text" v-model="searchQuery" placeholder="Search nodes…">
           <span v-if="searchQuery.trim()" class="tb-label">
@@ -147,19 +153,17 @@
             @click="selectSearchMatches"
             title="Add all search matches to the selection so you can drag them together"
           >Select all</button>
+          <template v-if="selectedNodeCount > 0">
+            <span class="tb-label" style="font-weight:600;">{{ selectedNodeCount }} selected</span>
+            <button class="tb-btn tb-accent" @click="collectSelected" :disabled="selectedNodeCount < 2" title="Arrange selected nodes in a grid around their current centre">Arrange</button>
+          </template>
         </div>
 
-        <!-- Group 5: Selection actions (conditional) -->
-        <template v-if="selectedNodeCount > 0">
-          <div class="tb-sep"></div>
-          <span class="tb-label" style="font-weight:600;">{{ selectedNodeCount }} selected</span>
-          <button class="tb-btn tb-accent" @click="collectSelected" title="Arrange selected nodes in a grid around their current centre">Arrange</button>
-        </template>
-
         <div class="tb-sep"></div>
+        <input class="tb-check" type="checkbox" id="chk-perf" v-model="perfMode" @change="doUpdateLayout($event)">
+        <label for="chk-perf">Fast-Drag</label>
 
-        <!-- State -->
-        <span class="tb-label">{{ state }}</span>
+        <span class="tb-label tb-version" title="zigbee2mqtt-networkmap card version">v{{ appVersion }}</span>
 
       </div>
     </div>
@@ -305,6 +309,7 @@ export default {
       edgesPerNode: /**  @type {Record<string, Edge[]>} */ {}, // f(node-key) = array of all connected edges
       // ----------------
       state: '',
+      refreshInProgress: false,
       // Search / highlight
       searchQuery: '',
       // UI Options
@@ -323,7 +328,7 @@ export default {
         interaction: {
           selectConnectedEdges: false,
           // https://visjs.github.io/vis-network/examples/network/edgeStyles/smoothWorldCup.html
-          hideEdgesOnDrag: false,
+          hideEdgesOnDrag: true,
           // Reduce zoom speed — the default (1.0) is too fast on tablet touch screens
           zoomSpeed: 0.3,
           // Ctrl/Cmd+click on desktop; long-press on touch to add to selection
@@ -360,6 +365,10 @@ export default {
     },
     backgroundOpacity () {
       return this.config.background_opacity !== undefined ? this.config.background_opacity : 0.3
+    },
+    appVersion () {
+      /* global __VERSION__ */
+      return typeof __VERSION__ !== 'undefined' ? __VERSION__ : ''
     }
   },
   watch: {
@@ -986,6 +995,7 @@ export default {
       this.refreshNetwork()
     },
     refresh () {
+      this.refreshInProgress = true
       this.state = 'Refreshing...'
       this._refreshStartedAt = Date.now()
       console.log('[refresh] started — waiting for zigbee2mqtt to publish network map')
@@ -1192,6 +1202,7 @@ export default {
         const elapsed = ((Date.now() - this._refreshStartedAt) / 1000).toFixed(1)
         console.log('[refresh] done — took ' + elapsed + 's, got ' + (attr.nodes ? attr.nodes.length : 0) + ' nodes')
         this._refreshStartedAt = null
+        this.refreshInProgress = false
       }
       // Mirror fresh live data to the retained cache topic — skip when we're already reading from the cache
       if (liveHasNodes && !usingCache && attr.links) {

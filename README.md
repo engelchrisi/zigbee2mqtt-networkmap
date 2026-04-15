@@ -1,6 +1,10 @@
+# zigbee2mqtt-networkmap
+
+A [Custom Card](https://developers.home-assistant.io/docs/frontend/custom-ui/custom-card) for [Home Assistant](https://www.home-assistant.io/) to show the [Zigbee2mqtt](https://github.com/Koenkk/zigbee2mqtt/) network map with [vis-network](https://visjs.github.io/vis-network/docs/network/).
+
 # Enhancements
 - Double click on a node to find its strongest path to the Coordinator. Strongest means that the weakest LQI of an edge is greater or equal the weakest LQI of alternative paths.
-- Toggle **LQI**, **Performance**, **End-Device Edges** and **Router Edges** with styled toggle buttons in the toolbar
+- Toggle **LQI**, **Fast-Drag**, **End-Device Edges** and **Router Edges** with styled toggle buttons in the toolbar
 - Filter **Weak** and **Strong** edges via dropdowns (N/A / Only / Hide)
 - Show a background image (e.g. floor plan) behind the network graph that pans and zooms with it — configure with `background_image`, `background_opacity`, `background_network_width`, `background_network_x`, `background_network_y`
 - Configure an initial zoom level applied after the graph stabilises with `initial_zoom`
@@ -13,13 +17,30 @@
 - **Arrange**: with nodes selected, press **Arrange** to place them in a compact grid around their current centre — useful for grouping devices by room
 - **Last-known refresh timestamp**: if the HA entity is `unknown` or `unavailable` after a reboot, the toolbar shows the most recent valid timestamp with a `(last known)` label until fresh data arrives
 
-# zigbee2mqtt-networkmap
+## Screenshot
 
-[Custom Card](https://developers.home-assistant.io/docs/frontend/custom-ui/custom-card) for [Home Assistant](https://www.home-assistant.io/) to show the [Zigbee2mqtt](https://github.com/Koenkk/zigbee2mqtt/) network map with [vue-d3-network](https://github.com/emiliorizzo/vue-d3-network/).
+Example (Home Assistant dashboard with floor plan background):
 
-## [Demo](https://azuwis.github.io/zigbee2mqtt-networkmap/)
+![Zigbee network map screenshot](ZigbeeNetworkScreenshot.png)
 
-[![Screenshot](https://azuwis.github.io/zigbee2mqtt-networkmap/screenshot.gif)](https://azuwis.github.io/zigbee2mqtt-networkmap/)
+The **bottom bar** is the card toolbar:
+
+- **Refresh** — Requests a new map from Zigbee2MQTT. The button is disabled while a refresh is running.
+- **Timestamp** — Map “age” from Home Assistant: `Refreshing…`, the last successful publish time, or a **(last known)** time if the entity was briefly unavailable after a reboot.
+- **End-Device Edges**, **Router Edges**, **LQI** — Toggles for which links are drawn and whether LQI labels appear on edges.
+- **Weak Edges** / **Strong Edges** — Dropdowns (N/A / Only / Hide) to emphasise or hide low- or high-LQI links.
+- **Search** (grouped in one bordered box) — Filters nodes by name; with matches, a count and **Select all** add every matching node to the selection. When at least one node is selected, **N selected** and **Arrange** appear in the same box; **Arrange** places two or more selected nodes in a compact grid around their centre.
+- **Fast-Drag** — Hides edges while dragging so large graphs stay responsive.
+
+### Example: select and position several nodes (e.g. one room)
+
+1. In **Search**, type `Studio` — nodes whose names contain that text are highlighted and the rest of the graph is de-emphasised so you can see the matches.
+2. Click **Select all** — every matching node is added to the selection (toolbar shows something like **6 selected** if six devices matched).
+3. Click **Arrange** — the selected nodes are laid out in a tight grid around their current centre so they are easier to grab as a single group.
+4. Drag any one of the selected nodes (desktop: normal drag; tablet: long-press then drag). **All** selected nodes move together so you can place the whole group on the floor plan or next to other devices.
+5. Release to drop them; positions are saved like any other dragged nodes.
+
+You can refine the selection with Ctrl/Cmd+click or **Shift**+drag on the canvas if you need to add or remove nodes before moving the group.
 
 ## Home Assistant setup
 
@@ -60,14 +81,20 @@ mqtt:
 
 ### Frontend setup (HACS)
 
-When installing the plugin via [HACS](https://hacs.xyz/), you'll need to add the resource manually.
+1. **Install [HACS](https://www.hacs.xyz/docs/setup/download)** if you do not have it yet (depends on how Home Assistant is installed — follow the official guide).
 
- - Edit your profile (bottom iten in the left menu in the web UI). Enable *Advanced Mode*.
- - Go to *Settings* -> *Dashboards* and click the three dots in the upper right corner.
- - Click *Resources*
- - Click *ADD RESOURCE* in the bottom right
- - Enter `/hacsfiles/zigbee2mqtt-networkmap/zigbee2mqtt-networkmap.js` in the URL field  and select *JavaScript Module*. Click *CREATE*.
- - Go to *HACS* -> *Frontend*. Here you should see the *Zigbee2mqtt networkmap Card* without any error messages.
+2. **Install this card from HACS:** open **HACS** → **Frontend** → search for **Zigbee2mqtt networkmap** (or the exact name shown) → **Download** / install.
+   If it does not appear, add the repository under **HACS** → **⋯** menu → **Custom repositories** (use this project’s GitHub URL, category **Dashboard** / **Plugin** as HACS asks), then install from **Frontend**.
+
+3. **Register the Lovelace resource** (Home Assistant does not always attach it automatically):
+
+   - Edit your profile (bottom item in the left menu in the web UI). Enable **Advanced Mode**.
+   - **Settings** → **Dashboards** → **⋯** (upper right) → **Resources** → **ADD RESOURCE**.
+   - URL: `/hacsfiles/zigbee2mqtt-networkmap/zigbee2mqtt-networkmap.js` — type **JavaScript Module** → **CREATE**.
+
+4. **Refresh the browser** (or reload Lovelace) if the card does not show up when adding a card.
+
+Under **HACS** → **Frontend**, the integration should show as installed without errors. Then continue with [Card setup](#card-setup-dashboard-web-ui).
 
 ### Card setup (Dashboard Web UI)
 
@@ -76,9 +103,9 @@ In order to add this card to the dashboard, Use the *Edit Dashboard* on the top 
 type: custom:zigbee2mqtt-networkmap
 entity: sensor.zigbee2mqtt_networkmap
 ```
-Make sure to use the same name of the sensor defined under `configuration.yaml`, baseed on the `Zigbee2mqtt Networkmap` name.
+Make sure to use the same name of the sensor defined under `configuration.yaml`, based on the `Zigbee2mqtt Networkmap` name.
 
-Or if you use yaml files for dashboards:
+Or if you use yaml files for dashboards (example aligned with `DASHBOARDS/Tablet/Zigbee.yaml`):
 ``` yaml
 theme: Backend-selected
 title: Zigbee Network
@@ -86,6 +113,7 @@ type: panel
 cards:
   - type: custom:zigbee2mqtt-networkmap
     entity: sensor.zigbee2mqtt_networkmap
+    cached_entity: sensor.zigbee2mqtt_networkmap_cached
     layout_entity: sensor.zigbee2mqtt_networkmap_layout
     # the following are optional:
     mqtt_base_topic: zigbee2mqtt # if you change base_topic of Zigbee2mqtt, change it accordingly
@@ -96,15 +124,14 @@ cards:
     font_size: 12
     link_width: 2
     height: 1000 # height of the card
-    background_image: /local/floorplan.png # optional: URL of an image shown behind the network graph (pans & zooms with the graph)
-    background_opacity: 0.3              # optional: opacity of the background image (0.0–1.0, default 0.3)
-    background_network_width: 1000       # optional: width of the background image in network coordinate units (height auto from aspect ratio, default 1000)
-    # background_network_x: -500        # optional: left edge of the image in network coords (default: -background_network_width/2)
-    # background_network_y: -500        # optional: top edge of the image in network coords (default: -height/2)
-    initial_zoom: 0.5                    # optional: fallback zoom scale on first load — overridden by persisted zoom once user has zoomed
-    cached_entity: sensor.zigbee2mqtt_networkmap_cached  # optional: shows last known map instantly after HA reboot while live map loads
     # use this css config or use whatever css tech to change look and feel,
     # the same variable can also be used in Home Assistant themes, see https://www.home-assistant.io/components/frontend/#defining-themes
+    background_image: /local/floorplan.png   # path to your image
+    background_opacity: 0.6                  # 0.0 invisible, 1.0 fully opaque (default: 0.3)
+    background_network_width: 2500           # width of the image in network coordinates (height is auto from aspect ratio)
+    initial_zoom: 1.0                        # zoom scale applied after the graph stabilises (read the live value from the "Zoom:" display in the toolbar)
+    # background_network_x: -500            # left edge in network coords (default: -background_network_width/2)
+    # background_network_y: -500            # top edge in network coords (default: -height/2)
     css: |
       :host {
         --zigbee2mqtt-networkmap-node-color: rgba(18, 120, 98, .7);
@@ -122,14 +149,15 @@ cards:
 
 ### Frontend setup (YAML mode)
 
-Download [`zigbee2mqtt-networkmap.js`](https://github.com/azuwis/zigbee2mqtt-networkmap/releases/download/v0.9.0/zigbee2mqtt-networkmap.js) and put it into `<config-directory>/www/` directory.
+Download [`zigbee2mqtt-networkmap.js`](https://github.com/azuwis/zigbee2mqtt-networkmap/releases/download/v1.0.2/zigbee2mqtt-networkmap.js) and put it into `<config-directory>/www/` directory.
 
-Configure in Settings / Dashboards / 3-dot-menu: Resources:
-(o) JavaScript Module
-with URL:
-/local/ce-zigbee-networkmap/zigbee2mqtt-networkmap.js?v=0.9.4
+Configure the resource in the UI:
 
-You can increase the version number to force reloading of new versions. Number does not matter it must be different from previous ones.
+- **Settings** → **Dashboards** → **⋯** (top right) → **Resources** → **ADD RESOURCE**
+  - **URL:** `/local/zigbee2mqtt-networkmap.js?v=1.0.2`
+  - **Resource type:** JavaScript Module
+
+> **Cache busting:** You can increase the version number to force reloading of new versions. The number does not matter—it only needs to be different from the previous one.
 
 or enable [Dashboard YAML mode](https://www.home-assistant.io/dashboards/dashboards/#using-yaml-for-the-default-dashboard).
 
@@ -139,62 +167,19 @@ In `configuration.yaml`:
 lovelace:
   mode: yaml
   resources:
-    - url: /local/zigbee2mqtt-networkmap.js?v=0.9.0
+    - url: /local/zigbee2mqtt-networkmap.js?v=1.0.2
       type: module
 
-```
-
-### Card setup (YAML mode)
-
-In `ui-lovelace.yaml`:
-
-``` yaml
-views:
-  - title: Zigbee Network
-    panel: true # this renders the first card on full width, other cards in this view will not be rendered
-    cards:
-      - type: custom:zigbee2mqtt-networkmap
-        entity: sensor.zigbee2mqtt_networkmap
-        # the following are optional:
-        mqtt_base_topic: zigbee2mqtt # if you change base_topic of Zigbee2mqtt, change it accordingly
-        mqtt_topic: zigbee2mqtt/bridge/request/networkmap # or you can specify the full mqtt topic, see https://www.zigbee2mqtt.io/guide/usage/mqtt_topics_and_messages.html#zigbee2mqtt-bridge-request
-        mqtt_payload: { type: 'raw', routes: true }
-        force: 3000 # decrease it to get smaller map if you have many devices
-        node_size: 16
-        font_size: 12
-        link_width: 2
-        height: 400 # height of the card
-        background_image: /local/floorplan.png # optional: URL of an image shown behind the network graph (pans & zooms with the graph)
-        background_opacity: 0.3              # optional: opacity of the background image (0.0–1.0, default 0.3)
-        background_network_width: 1000       # optional: width of the background image in network coordinate units (default 1000)
-        # background_network_x: -500        # optional: left edge in network coords (default: -background_network_width/2)
-        # background_network_y: -500        # optional: top edge in network coords (default: -height/2)
-        initial_zoom: 0.5                    # optional: zoom scale applied once after the graph stabilises
-        # use this css config or use whatever css tech to change look and feel,
-        # the same variable can also be used in Home Assistant themes, see https://www.home-assistant.io/components/frontend/#defining-themes
-        css: |
-          :host {
-            --zigbee2mqtt-networkmap-node-color: rgba(18, 120, 98, .7);
-            --zigbee2mqtt-networkmap-node-fill-color: #dcfaf3;
-            --zigbee2mqtt-networkmap-node-pinned-color: rgba(190, 56, 93, .6);
-            --zigbee2mqtt-networkmap-link-color: rgba(18, 120, 98, .5);
-            --zigbee2mqtt-networkmap-hover-color: #be385d;
-            --zigbee2mqtt-networkmap-link-selected-color: rgba(202, 164, 85, .6);
-            --zigbee2mqtt-networkmap-label-color: #127862;
-            --zigbee2mqtt-networkmap-arrow-color: rgba(18, 120, 98, 0.7);
-            --zigbee2mqtt-networkmap-node-coordinator-color: rgba(224, 78, 93, .7);
-            --zigbee2mqtt-networkmap-node-router-color: rgba(0, 165, 255, .7);
-          }
 ```
 
 ### Upgrade (YAML mode)
 
 Replace `<config-directory>/www/zigbee2mqtt-networkmap.js` with new one, and
-change version string in `configuration.yaml`:
+increase the version number in `configuration.yaml`:
 
 ``` yaml
 resources:
-  - url: /local/zigbee2mqtt-networkmap.js?v=0.9.0 # change `v=x.x.x` to `v=0.9.0`
+  - url: /local/zigbee2mqtt-networkmap.js?v=1.0.3 # change `v=1.0.2` to `v=1.0.3`
     type: module
 ```
 
@@ -210,7 +195,7 @@ A: Four separate browser-local keys are maintained:
 |-----|----------|------------|
 | `zigbee2mqtt-networkmap-layout` | Node positions (backup copy) | On every node drag-and-release |
 | `zigbee2mqtt-networkmap-viewport` | Pan position + zoom scale | On every zoom or pan gesture |
-| `zigbee2mqtt-networkmap-settings` | LQI, Performance mode, edge filter settings | On every toolbar settings change |
+| `zigbee2mqtt-networkmap-settings` | LQI, Fast-Drag, edge filter settings | On every toolbar settings change |
 | `zigbee2mqtt-networkmap-last-state` | Last valid refresh timestamp | Whenever the entity reports a real timestamp |
 
 Node positions are primarily stored via MQTT (retained message on `zigbee2mqtt/bridge/networkmap/layout`) and shared across all browsers/devices. The `localStorage` copy is a fallback used automatically when the MQTT retained message is missing (e.g. after a broker restart).
@@ -252,7 +237,7 @@ https://github.com/Koenkk/zigbee2mqtt/issues/2436 for discussion.
 #### [0.11.0] - 2026-04-13
 
 * Reduce zoom speed on touch/tablet screens (`zoomSpeed: 0.3`) to prevent over-shooting
-* Persist zoom level, pan position and UI settings (LQI, Performance mode, edge filters) in `localStorage` — restored on every page reload, independent of MQTT and HA reboots
+* Persist zoom level, pan position and UI settings (LQI, Fast-Drag, edge filters) in `localStorage` — restored on every page reload, independent of MQTT and HA reboots
 * Add `cached_entity` card option: mirrors the live network map to a retained MQTT topic (`zigbee2mqtt/bridge/networkmap/cached`) so the card can display nodes instantly after a Home Assistant reboot instead of waiting for zigbee2mqtt to regenerate the map
 * Add build timestamp baked into the bundle — logged as a styled banner in the browser console on startup
 * Add detailed `[persist]`, `[cache]` and `[refresh]` console logging to aid debugging of persistence and startup behaviour
