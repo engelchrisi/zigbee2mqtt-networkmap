@@ -303,13 +303,45 @@ yarn install
 
 ### Build and deploy (Windows / PowerShell)
 
-A convenience script is provided to build on the dev machine and deploy directly to Home Assistant:
+Create your own `build_and_deploy.ps1` in the repository root so you can build on your dev machine and deploy directly to Home Assistant.
+
+1. Create a new file named `build_and_deploy.ps1`.
+2. Paste the script below.
+3. Replace the placeholder values (host, paths, username, repo directory) with your own environment details.
+4. Run it from the repo root:
 
 ``` powershell
-& "\\192.168.20.143\zigbee2mqtt-networkmap\build_and_deploy.ps1"
+powershell -ExecutionPolicy Bypass -File ".\build_and_deploy.ps1"
 ```
 
-Edit the `$SshHost` and `$DstDir` variables at the top of `build_and_deploy.ps1` to match your environment.
+Example template:
+
+``` powershell
+$SrcJs   = "\\<dev-share>\<repo>\dist\zigbee2mqtt-networkmap.js"
+$DstDir  = "\\<ha-share>\<ha-config>\www\<target-folder>"
+$DstJs   = "$DstDir\zigbee2mqtt-networkmap.js"
+$SshHost = "<username>@<build-host>"
+$RepoDir = "<path-on-build-host>/zigbee2mqtt-networkmap"
+
+Write-Host "Building..." -ForegroundColor Cyan
+ssh $SshHost "cd $RepoDir && yarn build 2>&1"
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Build failed - aborting deploy." -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "Deploying to $DstJs ..." -ForegroundColor Cyan
+Copy-Item -Path $SrcJs -Destination $DstJs -Force
+
+if ($?) {
+    $ts = (Get-Item $DstJs).LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss")
+    Write-Host "Done. File deployed at $ts" -ForegroundColor Green
+} else {
+    Write-Host "Copy failed." -ForegroundColor Red
+    exit 1
+}
+```
 
 ### Compiles and hot-reloads for development
 
