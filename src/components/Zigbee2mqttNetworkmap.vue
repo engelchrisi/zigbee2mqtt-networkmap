@@ -8,6 +8,7 @@
         gap: 6px;
         align-items: center;
         padding: 6px 8px;
+        background: #fff;
       }
       /* ── Action buttons (Refresh, Select, Select all, Collect) ── */
       .tb-btn {
@@ -191,7 +192,10 @@ class Node {
     this.image = imageUrl(hassioNode)
     this.imagePadding = 8
     this.font = {
-      size: 10
+      size: 10,
+      color: '#ffffff',
+      strokeWidth: 2,
+      strokeColor: '#1a1a2e'
     }
     this.shadow = true
     this.physics = true
